@@ -1,0 +1,237 @@
+---
+title: "Linear Regression (R)"
+author: "Yang Xi"
+date: "21 Nov, 2018"
+output:
+  html_document:
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+```
+
+# <br>Model Fitting and Interpretation
+### Independent Numeric and Categorical variables
+Note that, `lm()` is equivalent to `glm()` wtih `family = gaussian` (default)
+```{r}
+# Simulate data
+set.seed(1)
+n <- 9000
+x1 <- rep(c('A', 'B', 'C'), n/3)[sample(n, n)]
+x2 <- runif(n, min=0, max=2)
+x3 <- runif(n, min=0, max=1)
+e <- runif(n, min=-0.5, max=0.5)
+
+b1_map <- c('A'=-2, 'B'=-1, 'C'=1) # 0, 1, 3
+b2 <- 3
+y <- b1_map[x1] + b2*x2 + e
+
+df <- data.frame(x1=x1, x2=x2, x3=x3, y=y)
+
+# Fit model
+lmFit <- lm(y~., df)
+summary(lmFit)
+
+```
+
+**<br>Response to highly correlated numeric variables**
+```{r}
+# Simulate data
+set.seed(1)
+n <- 10000
+x1 <- runif(n, min=1, max=2)
+x2 <- x1
+e <- runif(n, min=-0.5, max=0.5)
+
+b1 <- 2
+b2 <- 3
+y <- b1*x1+b2*x2+e
+
+df <- data.frame(x1=x1, x2=x2, y=y)
+
+# Fit model
+lmFit <- lm(y~., df)
+summary(lmFit)
+```
+
+### <br>Interaction: numeric variable interact with boolean variable
+Take note how to interpret the result
+```{r}
+# Simulate data
+set.seed(1)
+n <- 10000
+x1 <- rep(c('N', 'Y'), n/2)[sample(n, n)]
+x2 <- runif(n, min=0, max=1)
+e <- runif(n, min=-0.1, max=0.1)
+
+bn <- -2
+by <- 1
+y <- ifelse(x1=='N', bn*x2, by*x2) + e
+
+df <- data.frame(x1=x1, x2=x2, y=y)
+
+# Fit model
+lmFit <- lm(y~x1*x2, df)
+summary(lmFit)
+```
+
+### <br>Polynomial Numeric Variable
+Take note `raw = TRUE`
+```{r}
+set.seed(1)
+n <- 10000
+x1 <- runif(n, min=2, max=5)
+e <- runif(n, min=-0.5, max=0.5)
+
+b2 <- 3
+b1 <- 2
+y <- b2*x1^2 + b1*x1 + e
+
+df <- data.frame(x1=x1, y=y)
+
+# Fit model
+lmFit <- lm(y~poly(x1, 2, raw = TRUE), df) # raw = FALSE (default) is orthogonal polynomails
+summary(lmFit)
+```
+
+# <br>Example: Classification
+```{r, message=FALSE}
+library(tidyverse)
+library(caret)
+library(MLmetrics)
+library(ROCR)
+
+dfTrain0 <- read_csv("../0. Data/(2016 UCI) Credit Default/data_train.csv")
+dfTest0 <- read_csv("../0. Data/(2016 UCI) Credit Default/data_test.csv")
+
+PrepTrainTest <- function(df) {
+  df %>%
+    mutate(Education = relevel(as.factor(Education), ref="high school"),
+           SepRepayment = relevel(as.factor(SepRepayment), ref="paid"),
+           Default = relevel(as.factor(ifelse(Default==0, "N", "Y")), ref="N") # for classProbs=T
+           )
+}
+dfTrain <- PrepTrainTest(dfTrain0)
+
+yWeights <- ifelse(dfTrain$Default=="N", 1, sum(dfTrain$Default=="N")/sum(dfTrain$Default=="Y"))
+
+# Fit model with CV (10-fold by default)
+## note: quasibinomial is used here because with weight the class became non-integer.
+## it yields the same result as binomial, but supresses the warning message
+f1 <- function(data, lev = NULL, model = "F1") {
+  # take note the positive is lev[2] in this example
+  c(F1 = F1_Score(data$obs, data$pred, lev[2]))
+}
+
+lmFit <- train(Default ~ ., data=dfTrain, method='glm', family = quasibinomial,
+               weights=yWeights,
+               metric = "F1",
+               trControl=trainControl(method="cv",
+                                      summaryFunction=f1))
+summary(lmFit)
+```
+
+### <br>Train performance
+```{r}
+probTrain <- predict(lmFit, type="prob")$"Y"
+predTrain <- predict(lmFit)
+
+cmTrain <- confusionMatrix(predTrain, dfTrain$Default, positive="Y")
+cmTrain
+
+perfTrain <- data.frame(F1 = round(cmTrain$byClass['F1'], 3),
+                        AUC = round(performance(prediction(probTrain, dfTrain$Default),
+                                                measure="auc")@y.values[[1]], 3))
+row.names(perfTrain) <- NULL
+perfTrain
+```
+
+### <br>Cross-Validation performance
+```{r}
+lmFit
+```
+
+### <br>Test performance
+```{r}
+dfTest <- PrepTrainTest(dfTest0)
+
+predTest <- predict(lmFit, dfTest)
+
+cmTest <- confusionMatrix(predTest, dfTest$Default, positive="Y")
+cmTest
+
+paste('Test F1 score is', round(cmTest$byClass['F1'], 3))
+```
+
+# <br>Appendix: test with optimized cutoff for highest F1
+### <br>Train performance
+```{r}
+lmFitOp <- train(Default ~ ., data=dfTrain, method='glm', family = quasibinomial,
+                 weights=yWeights,
+                 trControl=trainControl(method="none"))
+
+# get optimal cutoff
+prob <- predict(lmFitOp, type="prob")["Y"]
+perf <- performance(prediction(prob, dfTrain$Default), measure="f")
+plot(perf)
+opCutoff <- perf@x.values[[1]][which.max(perf@y.values[[1]])]
+opF1 <- max(perf@y.values[[1]], na.rm=T)
+print(paste("Optimal train F1", round(opF1,3), "achieved at cutoff =", round(opCutoff, 3)))
+
+predTrain <- as.factor(ifelse(prob < opCutoff, "N", "Y"))
+confusionMatrix(predTrain, dfTrain$Default, positive="Y")
+```
+
+### <br>Cross-Validation performance
+This will be done manually
+```{r}
+validate_fold <- function(valiIndex) {
+  foldTrain <- dfTrain[-valiIndex,]
+  foldVali <- dfTrain[valiIndex,]
+  foldWeights <- ifelse(foldTrain$Default=="N", 1,
+                        sum(foldTrain$Default=="N")/sum(foldTrain$Default=="Y"))
+  
+  foldFit <- train(Default ~ ., data=foldTrain, method='glm', family = quasibinomial,
+                   weights=foldWeights,
+                   trControl=trainControl(method="none"))
+  
+  # get optimal cutoff
+  prob <- predict(foldFit, type="prob")["Y"]
+  perf <- performance(prediction(prob, foldTrain$Default), measure="f")
+  opCutoff <- perf@x.values[[1]][which.max(perf@y.values[[1]])]
+  
+  # validateion performance
+  ## optimal F1
+  prob <- predict(foldFit, foldVali, type="prob")["Y"]
+  predOp <- as.factor(ifelse(prob < opCutoff, "N", "Y"))
+  opF1 <- confusionMatrix(predOp, foldVali$Default, positive="Y")$byClass['F1']
+  
+  ## normal F1
+  pred <- predict(foldFit, foldVali)
+  F1 <- confusionMatrix(pred, foldVali$Default, positive="Y")$byClass['F1']
+  
+  foldOutput <- data.frame(opCutoff = opCutoff, opF1 = opF1, F1 = F1)
+  row.names(foldOutput) <- NULL
+  return(foldOutput)
+}
+
+cvValiIndex <- createFolds(dfTrain$Default, k=10)
+cvResults <- map_dfr(cvValiIndex, validate_fold)
+
+cvResults
+print(paste("Average optimized F1 =", round(mean(cvResults$opF1),3)))
+print(paste("Average normal F1 =", round(mean(cvResults$F1),3)))
+```
+
+### <br>Test performance
+```{r}
+probTest <- predict(lmFitOp, dfTest, type="prob")["Y"]
+predTest <-  as.factor(ifelse(probTest < opCutoff, "N", "Y"))
+
+cmTest <- confusionMatrix(predTest, dfTest$Default, positive="Y")
+cmTest
+
+paste('Test F1 score is', round(cmTest$byClass['F1'], 3))
+```
+

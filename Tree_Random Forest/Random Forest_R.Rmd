@@ -1,0 +1,139 @@
+---
+title: "Random Forest (R)"
+author: "Yang Xi"
+date: "22 Nov, 2018"
+output:
+  html_document:
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+# <br>Example: Classification
+```{r, message=FALSE}
+library(tidyverse)
+library(caret)
+library(MLmetrics)
+library(ROCR)
+
+dfTrain0 <- read_csv("../0. Data/(2016 UCI) Credit Default/data_train.csv")
+dfTest0 <- read_csv("../0. Data/(2016 UCI) Credit Default/data_test.csv")
+
+```
+
+<br>**Preprocessing**
+```{r}
+PrepTrainTest <- function(df) {
+  df %>%
+    mutate(Education = relevel(as.factor(Education), ref="high school"),
+           SepRepayment = relevel(as.factor(SepRepayment), ref="paid"),
+           Default = relevel(as.factor(ifelse(Default==0, "N", "Y")), ref="N"))
+}
+dfTrain <- PrepTrainTest(dfTrain0)
+
+yTrain <- dfTrain$Default
+w0 <- 1
+w1 <- sum(yTrain=="N")/sum(yTrain=="Y")
+```
+
+## <br>Tune optimal parameters through cross-validation
+**Note:**
+
+* Handle class weights in `randomForest()` is tricky.
+* Here, `method="range"` will use `ranger` package.
+* In `ranger()`, tree size is controlled through `min.node.size`
+```{r}
+f1 <- function(data, lev = NULL, model = "F1") {
+  c(F1 = F1_Score(data$obs, data$pred, positive = lev[2]))
+}
+
+rfFitCV <- train(Default ~., dfTrain, method="ranger",
+                 class.weights = c(w0, w1),
+                 num.trees = 100, importance = "impurity",
+                 metric = "F1",
+                 trControl = trainControl(method = "cv", # 10 fold by default
+                                          summaryFunction = f1,
+                                          verboseIter = F), # verboseIter to on/off status
+                 tuneGrid = expand.grid(splitrule="gini",
+                                        mtry=seq(3, 7),
+                                        min.node.size=floor(seq(1, nrow(dfTrain)/4, length.out=5))))
+
+
+# optimal parameters and CV performance
+tuneResults <- rfFitCV$results %>%
+  mutate(min.node.fraction = as.character(floor(nrow(dfTrain)/min.node.size))) %>%
+  select(mtry, min.node.size, min.node.fraction, F1, F1SD)
+
+ggplot(tuneResults, aes(x=mtry, y=min.node.fraction, fill=F1)) + 
+  geom_tile() + 
+  scale_fill_gradient(low="red", high="green")
+
+mtryOp <- rfFitCV$bestTune$mtry
+nodeOp <- rfFitCV$bestTune$min.node.size
+
+filter(tuneResults,
+       mtry==mtryOp,
+       min.node.size==nodeOp)
+```
+
+### <br>Train Performance
+A new model will be fit with the optimal parameters, because we want to get predicted probability.
+**<br>Note:** there is a bug with `class.weights` that it doesn't work with `probability = True`.
+```{r}
+library(ranger)
+
+rfFit <- ranger(Default ~., dfTrain,
+                case.weights = ifelse(dfTrain$Default=="N", w0, w1),
+                num.trees = 100, importance = "impurity", probability = T,
+                splitrule = "gini", mtry = mtryOp, min.node.size = nodeOp)
+
+probTrain <- predict(rfFit, dfTrain)$predictions[, "Y"]
+predTrain <- as.factor(ifelse(probTrain < 0.5, "N", "Y"))
+
+cmTrain <- confusionMatrix(predTrain, yTrain, positive="Y")
+cmTrain
+
+perfTrain <- data.frame(F1 = round(cmTrain$byClass['F1'], 3),
+                        AUC = round(performance(prediction(probTrain, yTrain),
+                                                measure="auc")@y.values[[1]], 3))
+row.names(perfTrain) <- NULL
+perfTrain
+```
+
+### <br>Model Interpretation
+**Variable Importance**
+```{r}
+rfVarImp <- data.frame(importance(rfFit))
+rfVarImp$variable <- row.names(rfVarImp)
+rfVarImp %>% select(variable, importance=importance.rfFit.) %>% arrange(desc(importance))
+```
+
+<br>**Partial Plot of `SepRepayment` and `CreditLimit`**
+```{r}
+library(pdp)
+
+pdpSepRepayment <- partial(rfFit, pred.var = "SepRepayment", plot = TRUE, train = dfTrain)
+pdpCreditLimit <- partial(rfFit, pred.var = "CreditLimit", plot = TRUE, train = dfTrain)
+
+grid.arrange(
+  pdpSepRepayment,
+  pdpCreditLimit,
+  ncol = 2
+)
+```
+
+### <br>Test performance
+```{r}
+dfTest <- PrepTrainTest(dfTest0)
+probTest <- predict(rfFit, dfTest)$predictions[, "Y"]
+predTest <- as.factor(ifelse(probTest < 0.5, "N", "Y"))
+
+cmTest <- confusionMatrix(predTest, dfTest$Default, positive="Y")
+cmTest
+
+paste('Test F1 score is', round(cmTest$byClass['F1'], 3))
+```
+
+<br>

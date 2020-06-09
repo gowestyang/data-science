@@ -1,0 +1,143 @@
+---
+title: "Classification And Regression Tree (R)"
+author: "Yang Xi"
+date: "14 Nov, 2018"
+output:
+  html_document:
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+```
+
+# <br>Example: Classification
+```{r, message=FALSE}
+library(tidyverse)
+library(caret)
+library(MLmetrics)
+library(rpart.plot)
+
+dfTrain0 <- read_csv("../0. Data/(2016 UCI) Credit Default/data_train.csv")
+dfTest0 <- read_csv("../0. Data/(2016 UCI) Credit Default/data_test.csv")
+
+```
+
+<br>**Preprocessing**
+```{r}
+PrepTrainTest <- function(df) {
+  df %>%
+    mutate(Education = relevel(as.factor(Education), ref="high school"),
+           SepRepayment = relevel(as.factor(SepRepayment), ref="paid"),
+           Default = as.factor(Default))
+}
+dfTrain <- PrepTrainTest(dfTrain0)
+
+yTrain <- dfTrain$Default
+yWeights <- ifelse(yTrain=="0", 1, sum(yTrain=="0")/sum(yTrain=="1"))
+
+```
+
+## <br>Tune optimal cp through cross-validation
+```{r}
+f1 <- function(data, lev = NULL, model = "F1") {
+  c(F1 = F1_Score(data$obs, data$pred, positive = lev[2]))
+}
+cartFitCV <- train(Default ~., dfTrain, method="rpart",
+                   weights = yWeights,
+                   metric = "F1",
+                   trControl = trainControl(method = "cv", # 10 fold by default
+                                            summaryFunction = f1),
+                   tuneLength = 100) # tune cp by default
+
+# optimal paraters and CV performance
+tuneResults <- cartFitCV$results
+ggplot(tuneResults, aes(x=cp, y=F1)) + geom_line() + theme_minimal()
+
+filter(tuneResults, cp==cartFitCV$bestTune$cp)
+```
+
+### <br>Model Interpretation
+```{r}
+cartFit <- cartFitCV$finalModel
+
+# Variable Importance
+cartVarImp <- varImp(cartFit)
+cartVarImp$variable <- row.names(cartVarImp)
+cartVarImp %>% select(variable, importance=Overall) %>% arrange(desc(importance))
+
+# tree plot with total number of tuples
+only_count <- function(x, labs, digits, varlen) paste(x$frame$n)
+boxcols <- c("palegreen3", "pink")[cartFit$frame$yval]
+
+par(xpd=TRUE)
+prp(cartFit, faclen = 0, cex = 0.8, node.fun=only_count, box.col = boxcols)
+legend("topright", legend = c("Default","Paid"), fill = c("pink", "palegreen3"),
+       title = "Group")
+```
+
+### <br>Train Performance
+```{r}
+probTrain <- predict(cartFitCV, type="prob")$"1"
+predTrain <- predict(cartFitCV)
+
+cmTrain <- confusionMatrix(predTrain, dfTrain$Default, positive="1")
+cmTrain
+
+perfTrain <- data.frame(F1 = round(cmTrain$byClass['F1'], 3),
+                        AUC = round(AUC(probTrain, dfTrain$Default), 3))
+row.names(perfTrain) <- NULL
+perfTrain
+```
+
+### <br>Test performance
+```{r}
+dfTest <- PrepTrainTest(dfTest0)
+predTest <- predict(cartFitCV, dfTest)
+
+cmTest <- confusionMatrix(predTest, dfTest$Default, positive="1")
+cmTest
+
+paste('Test F1 score is', round(cmTest$byClass['F1'], 3))
+```
+
+## <br>Tune optimal depth through cross-validation
+```{r}
+## for rpart2, setting tuneLength will tune maxdepth by default
+## here we just use expand.grid
+cartFitCV <- train(Default ~., dfTrain, method="rpart2",
+                   weights = yWeights,
+                   metric = "F1",
+                   trControl = trainControl(method = "cv", # 10 fold by default
+                                            summaryFunction = f1),
+                   tuneGrid = expand.grid(maxdepth = seq(1, 5, by = 1)))
+
+# optimal paraters and CV performance
+tuneResults <- cartFitCV$results
+ggplot(tuneResults, aes(x=maxdepth, y=F1)) + geom_line() + theme_minimal()
+
+filter(tuneResults, maxdepth==cartFitCV$bestTune$maxdepth)
+```
+
+### <br>Model Interpretation
+```{r}
+cartFit <- cartFitCV$finalModel
+
+# Variable Importance
+cartVarImp <- varImp(cartFit)
+cartVarImp$variable <- row.names(cartVarImp)
+cartVarImp %>% select(variable, importance=Overall) %>% arrange(desc(importance))
+
+# tree plot with total number of tuples
+only_count <- function(x, labs, digits, varlen) paste(x$frame$n)
+boxcols <- c("palegreen3", "pink")[cartFit$frame$yval]
+
+par(xpd=TRUE)
+prp(cartFit, faclen = 0, cex = 0.8, node.fun=only_count, box.col = boxcols)
+legend("topright", legend = c("Default","Paid"), fill = c("pink", "palegreen3"),
+       title = "Group")
+```
+
+
+
+
