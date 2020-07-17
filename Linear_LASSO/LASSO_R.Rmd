@@ -4,6 +4,7 @@ author: "Yang Xi"
 date: "14 Nov, 2018"
 output:
   html_document:
+    toc: 1
     code_folding: show
 ---
 
@@ -11,21 +12,25 @@ output:
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
 ```
 
-# <br>Example: Classification
+<br>
+
+# Example: Classification with Imbalanced Class
 ```{r, message=FALSE}
 library(tidyverse)
 library(caret)
 library(MLmetrics)
 
-dfTrain0 <- read_csv("../0. Data/(2016 UCI) Credit Default/data_train.csv")
-dfTest0 <- read_csv("../0. Data/(2016 UCI) Credit Default/data_test.csv")
+dfTrain0 <- read_csv("../../data/(2016 UCI) Credit Default/data_train.csv")
+dfTest0 <- read_csv("../../data/(2016 UCI) Credit Default/data_test.csv")
 
 ```
 
-<br>**Preprocessing**
+<br>
+
+**Preprocessing**
 LASSO by `glmnet` package has three requirements:<br>
 
-* predictors are standarized
+* predictors are standardized
     + implemented by `glmnet()` by default, and coefficients are returned on the original scale.
 * factors in predictors are converted to dummy variables
 * factors in target variable meet R naming (i.e. cannot be named as 0, 1)
@@ -50,7 +55,9 @@ yTrain <- dfTrain$Default
 yWeights <- ifelse(yTrain=="N", 1, sum(yTrain=="N")/sum(yTrain=="Y"))
 ```
 
-### <br>Tune optimal lambda through cross-validation
+<br>
+
+### Tune Optimal `lambda` Through Cross-Validation
 This code uses `tuneGrid` from `caret`.<br>
 `cv.glmnet` can be 4-5 times faster, but it does not support f1 measure.<br>
 This code does not implement one-standard-error (1SE) rule.
@@ -75,13 +82,17 @@ filter(tuneResults, lambda==lassoFit$bestTune$lambda)
 
 ```
 
-### <br>Model Interpretation
+<br>
+
+### Model Interpretation
 ```{r}
 # Note that glmnet() returns coefficients in original scale
 coef(lassoFit$finalModel, lassoFit$bestTune$lambda)
 ```
 
-### <br>Train Performance
+<br>
+
+### Train Performance
 ```{r}
 probTrain <- predict(lassoFit, type="prob")$Y
 predTrain <- predict(lassoFit)
@@ -97,7 +108,9 @@ row.names(perfTrain) <- NULL
 perfTrain
 ```
 
-### <br>Test performance
+<br>
+
+### Test Performance
 ```{r}
 dfTest <- PrepTrainTest(dfTest0)
 XTest <- predict(dummyTrain, dfTest)
