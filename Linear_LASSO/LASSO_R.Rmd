@@ -74,7 +74,7 @@ lassoFit <- train(XTrain, yTrain, method="glmnet",
                                          lambda = seq(0.001,0.1,by = 0.001)
                                                       ))
 
-# optimal paraters and CV performance
+# optimal parameters and CV performance
 tuneResults <- lassoFit$results
 ggplot(tuneResults, aes(x=lambda, y=F1)) + geom_line() + theme_minimal()
 
