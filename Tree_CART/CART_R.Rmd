@@ -4,6 +4,7 @@ author: "Yang Xi"
 date: "14 Nov, 2018"
 output:
   html_document:
+    toc: 1
     code_folding: show
 ---
 
@@ -11,15 +12,17 @@ output:
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
 ```
 
-# <br>Example: Classification
+<br>
+
+# Example: Classification with Imbalanced Class
 ```{r, message=FALSE}
 library(tidyverse)
 library(caret)
 library(MLmetrics)
 library(rpart.plot)
 
-dfTrain0 <- read_csv("../0. Data/(2016 UCI) Credit Default/data_train.csv")
-dfTest0 <- read_csv("../0. Data/(2016 UCI) Credit Default/data_test.csv")
+dfTrain0 <- read_csv("../../data/(2016 UCI) Credit Default/data_train.csv")
+dfTest0 <- read_csv("../../data/(2016 UCI) Credit Default/data_test.csv")
 
 ```
 
@@ -38,7 +41,9 @@ yWeights <- ifelse(yTrain=="0", 1, sum(yTrain=="0")/sum(yTrain=="1"))
 
 ```
 
-## <br>Tune optimal cp through cross-validation
+<br>
+
+## Tune Optimal `cp` Through Cross-Validation
 ```{r}
 f1 <- function(data, lev = NULL, model = "F1") {
   c(F1 = F1_Score(data$obs, data$pred, positive = lev[2]))
@@ -50,14 +55,16 @@ cartFitCV <- train(Default ~., dfTrain, method="rpart",
                                             summaryFunction = f1),
                    tuneLength = 100) # tune cp by default
 
-# optimal paraters and CV performance
+# optimal parameters and CV performance
 tuneResults <- cartFitCV$results
 ggplot(tuneResults, aes(x=cp, y=F1)) + geom_line() + theme_minimal()
 
 filter(tuneResults, cp==cartFitCV$bestTune$cp)
 ```
 
-### <br>Model Interpretation
+<br>
+
+### Variable Importance and Tree Plot
 ```{r}
 cartFit <- cartFitCV$finalModel
 
@@ -76,7 +83,9 @@ legend("topright", legend = c("Default","Paid"), fill = c("pink", "palegreen3"),
        title = "Group")
 ```
 
-### <br>Train Performance
+<br>
+
+### Train Performance
 ```{r}
 probTrain <- predict(cartFitCV, type="prob")$"1"
 predTrain <- predict(cartFitCV)
@@ -90,7 +99,9 @@ row.names(perfTrain) <- NULL
 perfTrain
 ```
 
-### <br>Test performance
+<br>
+
+### Test Performance
 ```{r}
 dfTest <- PrepTrainTest(dfTest0)
 predTest <- predict(cartFitCV, dfTest)
@@ -100,8 +111,9 @@ cmTest
 
 paste('Test F1 score is', round(cmTest$byClass['F1'], 3))
 ```
+<br>
 
-## <br>Tune optimal depth through cross-validation
+## Tune Optimal `maxdepth` Through Cross-Validation
 ```{r}
 ## for rpart2, setting tuneLength will tune maxdepth by default
 ## here we just use expand.grid
@@ -112,14 +124,15 @@ cartFitCV <- train(Default ~., dfTrain, method="rpart2",
                                             summaryFunction = f1),
                    tuneGrid = expand.grid(maxdepth = seq(1, 5, by = 1)))
 
-# optimal paraters and CV performance
+# optimal parameters and CV performance
 tuneResults <- cartFitCV$results
 ggplot(tuneResults, aes(x=maxdepth, y=F1)) + geom_line() + theme_minimal()
 
 filter(tuneResults, maxdepth==cartFitCV$bestTune$maxdepth)
 ```
+<br>
 
-### <br>Model Interpretation
+### Variable Importance and Tree Plot with Optimized Parameters
 ```{r}
 cartFit <- cartFitCV$finalModel
 

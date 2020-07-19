@@ -1,9 +1,10 @@
 ---
-title: "Linear Regression (R)"
+title: "Linear Regression and Logistic Regression (R)"
 author: "Yang Xi"
 date: "21 Nov, 2018"
 output:
   html_document:
+    toc: 1
     code_folding: show
 ---
 
@@ -11,9 +12,11 @@ output:
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
 ```
 
-# <br>Model Fitting and Interpretation
-### Independent Numeric and Categorical variables
-Note that, `lm()` is equivalent to `glm()` wtih `family = gaussian` (default)
+<br>
+
+# Linear Regression: Model Fitting and Interpretation
+### Independent Numeric and Categorical Variables
+Note that, `lm()` is equivalent to `glm()` with `family = gaussian` (default)
 ```{r}
 # Simulate data
 set.seed(1)
@@ -34,8 +37,9 @@ lmFit <- lm(y~., df)
 summary(lmFit)
 
 ```
+<br>
 
-**<br>Response to highly correlated numeric variables**
+### Response to Highly Correlated Numeric Variables
 ```{r}
 # Simulate data
 set.seed(1)
@@ -54,9 +58,10 @@ df <- data.frame(x1=x1, x2=x2, y=y)
 lmFit <- lm(y~., df)
 summary(lmFit)
 ```
+<br>
 
-### <br>Interaction: numeric variable interact with boolean variable
-Take note how to interpret the result
+### Interaction: Numeric Variable Interacts With Boolean Variable
+Take note on how to interpret the result
 ```{r}
 # Simulate data
 set.seed(1)
@@ -75,9 +80,10 @@ df <- data.frame(x1=x1, x2=x2, y=y)
 lmFit <- lm(y~x1*x2, df)
 summary(lmFit)
 ```
+<br>
 
-### <br>Polynomial Numeric Variable
-Take note `raw = TRUE`
+### Polynomial Numeric Variable
+Take note that `raw = TRUE`
 ```{r}
 set.seed(1)
 n <- 10000
@@ -94,16 +100,18 @@ df <- data.frame(x1=x1, y=y)
 lmFit <- lm(y~poly(x1, 2, raw = TRUE), df) # raw = FALSE (default) is orthogonal polynomails
 summary(lmFit)
 ```
+<br>
 
-# <br>Example: Classification
+# Logistic Regression: Classification with Imbalanced Class
+### Train Model with Cross-Validation and Interpret Fitted Coefficients
 ```{r, message=FALSE}
 library(tidyverse)
 library(caret)
 library(MLmetrics)
 library(ROCR)
 
-dfTrain0 <- read_csv("../0. Data/(2016 UCI) Credit Default/data_train.csv")
-dfTest0 <- read_csv("../0. Data/(2016 UCI) Credit Default/data_test.csv")
+dfTrain0 <- read_csv("../../data/(2016 UCI) Credit Default/data_train.csv")
+dfTest0 <- read_csv("../../data/(2016 UCI) Credit Default/data_test.csv")
 
 PrepTrainTest <- function(df) {
   df %>%
@@ -118,7 +126,7 @@ yWeights <- ifelse(dfTrain$Default=="N", 1, sum(dfTrain$Default=="N")/sum(dfTrai
 
 # Fit model with CV (10-fold by default)
 ## note: quasibinomial is used here because with weight the class became non-integer.
-## it yields the same result as binomial, but supresses the warning message
+## it yields the same result as binomial, but suppresses the warning message
 f1 <- function(data, lev = NULL, model = "F1") {
   # take note the positive is lev[2] in this example
   c(F1 = F1_Score(data$obs, data$pred, lev[2]))
@@ -131,8 +139,9 @@ lmFit <- train(Default ~ ., data=dfTrain, method='glm', family = quasibinomial,
                                       summaryFunction=f1))
 summary(lmFit)
 ```
+<br>
 
-### <br>Train performance
+### Train Performance
 ```{r}
 probTrain <- predict(lmFit, type="prob")$"Y"
 predTrain <- predict(lmFit)
@@ -146,13 +155,15 @@ perfTrain <- data.frame(F1 = round(cmTrain$byClass['F1'], 3),
 row.names(perfTrain) <- NULL
 perfTrain
 ```
+<br>
 
-### <br>Cross-Validation performance
+### Cross-Validation Performance
 ```{r}
 lmFit
 ```
+<br>
 
-### <br>Test performance
+### Test Performance
 ```{r}
 dfTest <- PrepTrainTest(dfTest0)
 
@@ -164,11 +175,17 @@ cmTest
 paste('Test F1 score is', round(cmTest$byClass['F1'], 3))
 ```
 
-# <br>Appendix: test with optimized cutoff for highest F1
-### <br>Train performance
+<br>
+
+# Appendix: Effect of Probability Cutoff (Theshold) in Defining Output Class
+
+Choosing an optimal probability cutoff can have similar effect to class weights. <br>
+This approach is rarely used, while it can be applied in models where class weights are hard to apply. <br>
+The example demonstrates tuning of optimal cutoff and the results.
+
+### Train Performance
 ```{r}
-lmFitOp <- train(Default ~ ., data=dfTrain, method='glm', family = quasibinomial,
-                 weights=yWeights,
+lmFitOp <- train(Default ~ ., data=dfTrain, method='glm', family = binomial,
                  trControl=trainControl(method="none"))
 
 # get optimal cutoff
@@ -183,17 +200,16 @@ predTrain <- as.factor(ifelse(prob < opCutoff, "N", "Y"))
 confusionMatrix(predTrain, dfTrain$Default, positive="Y")
 ```
 
-### <br>Cross-Validation performance
-This will be done manually
+<br>
+
+### Cross-Validation Performance
+This is done with user-defined function for cross-validation
 ```{r}
 validate_fold <- function(valiIndex) {
   foldTrain <- dfTrain[-valiIndex,]
   foldVali <- dfTrain[valiIndex,]
-  foldWeights <- ifelse(foldTrain$Default=="N", 1,
-                        sum(foldTrain$Default=="N")/sum(foldTrain$Default=="Y"))
   
   foldFit <- train(Default ~ ., data=foldTrain, method='glm', family = quasibinomial,
-                   weights=foldWeights,
                    trControl=trainControl(method="none"))
   
   # get optimal cutoff
@@ -201,7 +217,7 @@ validate_fold <- function(valiIndex) {
   perf <- performance(prediction(prob, foldTrain$Default), measure="f")
   opCutoff <- perf@x.values[[1]][which.max(perf@y.values[[1]])]
   
-  # validateion performance
+  # validation performance
   ## optimal F1
   prob <- predict(foldFit, foldVali, type="prob")["Y"]
   predOp <- as.factor(ifelse(prob < opCutoff, "N", "Y"))
@@ -220,11 +236,13 @@ cvValiIndex <- createFolds(dfTrain$Default, k=10)
 cvResults <- map_dfr(cvValiIndex, validate_fold)
 
 cvResults
-print(paste("Average optimized F1 =", round(mean(cvResults$opF1),3)))
-print(paste("Average normal F1 =", round(mean(cvResults$F1),3)))
+print(paste("Average F1 with optimal cutoff =", round(mean(cvResults$opF1),3)))
+print(paste("Average F1 with fixed cutoff at 0.5 =", round(mean(cvResults$F1),3)))
 ```
 
-### <br>Test performance
+<br>
+
+### Test Performance
 ```{r}
 probTest <- predict(lmFitOp, dfTest, type="prob")["Y"]
 predTest <-  as.factor(ifelse(probTest < opCutoff, "N", "Y"))
@@ -234,4 +252,3 @@ cmTest
 
 paste('Test F1 score is', round(cmTest$byClass['F1'], 3))
 ```
-
