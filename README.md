@@ -10,5 +10,7 @@ Here you will find templates of frequently used models, including
     - cross-validation
 - Deep Learning
     - neural style transfer 
+- Association Rule
+    - rule mining, interpretation and visualization
 
 More on the way :)
