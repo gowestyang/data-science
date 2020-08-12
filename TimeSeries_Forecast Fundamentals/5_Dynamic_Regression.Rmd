@@ -1,0 +1,328 @@
+---
+title: "Dynamic Regression"
+author: "Yang Xi"
+date: "17 Jan, 2018"
+output:
+  html_document:
+    toc: 1
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+```
+
+<br>
+
+# 7. Dynamic Regression
+### 7.1 Definition
+Dynamic Regression is a method to combine external information with ARIMA model. It is formulated as a regression model with ARIMA errors:
+$$ y_t=\beta_0+\beta_1 x_{1,t}+⋯+\beta_r x_{r,t}+e_t $$
+where,<br>
+$y_t$ is modeled as function of $r$ explanatory variables $x_{1,t},…,x_{r,t}$<br>
+$e_t$ is modeled by an ARIMA process
+
+<br>
+
+### 7.2 Implementation
+`auto.arima()` function from `forecast` package in R is a flexible tool to implement Dynamic Regression. The explanatory variables $x_{1,t},…,x_{r,t}$ is input as external regressors to this function.
+
+<br>
+
+### 7.3 Example: Monthly Sales Data of an Item
+In this example, the external regressors will be **coverage% _c_** representing the percentage of stores with the item in stock, and **discount% _d_** representing the average promotion level of the item.
+
+<br>
+In addition, transformations are applied to the coverage and discount regressors respectively, such that
+
+* coverage multiplier $c_m=c\in[0,1]$
+* discount multiplier $d_m=f(d)\in[1,3]\text{ for }d\in[0,1]$
+
+<br>
+Figure below plots the time series including the external regressors:
+```{r, message=FALSE, fig.height=10}
+library(dplyr)
+library(fpp2)
+
+load('../../data/(2017) Time Series/time_series_monthly.rdata')
+
+dfItem10 <- dfSalesMonthly %>%
+  filter(item_id == 10 & first_date >='2008-01-01' & first_date <='2013-12-31') %>%
+  as.data.frame() %>%
+  mutate(coverage = (100-stock_out_pct)/100) %>%
+  select(c(date=first_date, sales_qty, discount_pct, coverage))
+
+# Train test data index
+## 2008 - 2012 as training, 2013 as testing
+tp10 <- 60
+
+# Smooth outliers in training data
+outlier_smooth <- function(df_train) {
+  # Type 1: 0 sales, as log 0 cannot be handled.
+  sales <- df_train$sales_qty
+  outlier1 <- sales==0
+  
+  # Type 2: coverage is 0, as log 0 cannot be handled.
+  outlier2 <- df_train$coverage==0
+
+  # Type 3: low discount while high sales, cannot be explained by model
+  discount <- df_train$discount_pct
+  low_discount <- mean(discount)
+  low_discount_i <- discount < low_discount
+  high_sales <- mean(sales)+2*sd(sales)
+  high_sales_i <- sales > high_sales
+  outlier3 <- high_sales_i & low_discount_i
+  
+  # Adjust sales
+  outliers <- outlier1 | outlier2 | outlier3
+  
+  df_train$sales_qty[outliers] <- NA 
+
+  return(df_train)
+}
+
+dfItem10[1:tp10,] <- outlier_smooth(dfItem10[1:tp10,])
+
+# Transform Variables
+## Function to get a straight line connecting two points
+get_line <- function(xa, ya, xb, yb, v) v*(ya-yb)/(xa-xb) + (yb*xa - ya*xb)/(xa-xb)
+
+## Four-stage dm curve based on prior knowledge
+discount_curve <- function(discount) {
+  x1 <- 0
+  y1 <- 1
+  x2<- 5
+  y2 <- 1.3
+  x3 <- 30
+  y3 <- 1.9
+  x4 <- 40
+  y4 <- 3
+  x5 <- 100
+  y5 <- 3
+  
+  ifelse(discount < x2, get_line(x1, y1, x2, y2, discount),
+         ifelse(discount < x3, get_line(x2, y2, x3, y3, discount),
+                ifelse(discount < x4, get_line(x3, y3, x4, y4, discount),
+                       get_line(x4, y4, x5, y5, discount))))
+}
+
+dfItem10 <- dfItem10 %>%
+  mutate(cm = coverage,
+         dm = discount_curve(discount_pct),
+         Y = log(sales_qty),
+         Xc = log(cm),
+         Xd = log(dm))
+
+# Covert to ts
+ts10 <- select(dfItem10, -date)
+row.names(ts10) <- dfItem10$date
+ts10 <- ts(ts10, start=c(2008, 1), frequency=12)
+ts10s <- ts10[,'sales_qty']
+autoplot(ts10, facets=T)
+
+# Separate train test sets
+# 2008 - 2012 as training, 2013 as testing
+ts10_train <- window(ts10, end = c(2013, 0))
+ts10_test <- window(ts10, start = c(2013, 1))
+ts10s_test <- window(ts10s, start = c(2013, 1))
+ts10s_actual <- as.numeric(ts10s_test)
+```
+
+<br>
+
+**7.3.1 Mathematics Model**<br>
+$$y=y_0 c_m^{b_c} d_m^{b_d} e$$
+where,<br>
+$y_0=$ base market demand to be estimated<br>
+$c_m=$ coverage multiplier<br>
+$b_c=$ coverage coefficient to be estimated ($b_c>0$)<br>
+$d_m=$ discount multiplier<br>
+$b_d=$ discount coefficient to be estimated ($b_d>0$)<br>
+$e=$ error
+
+<br>
+Convert to linear by logarithm transformation:
+$$Y=b_0+b_c X_c+b_d X_d+e$$
+where,<br>
+$Y=log\,y$<br>
+$b_0=log\,⁡y_0$<br>
+$X_c=log\,⁡c_m$<br>
+$X_d=log⁡\,d_m$<br>
+
+<br>
+
+**7.3.2 Outliers Filtering**<br>
+Because regression models are sensitive to outliers, the outliers shall be identified and filtered out before fitting the model. There are three types of outliers defined in this application:
+
+* *sales_qty = 0*, because $log\,0$ cannot be handled by the model
+*	*coverage = 0*, because $log\,0$ cannot be handled by the model
+* low *discount_pct* while high *sales_qty*, which cannot be explained by the model.
+
+<br>
+Note that the data used in this example happen to have no observation matching the above outlier criteria, while it is still important to exam whether there are outliers in the data.
+
+<br>
+
+**7.3.3 ARIMA Parameters**<br>
+By applying `auto.arima()` to the training data, the following model is fitted:
+```{r}
+dr10_fit <- auto.arima(ts10_train[,'Y'], xreg=ts10_train[,c('Xc', 'Xd')])
+summary(dr10_fit)
+```
+
+<br>
+
+**7.3.4 Interpretation**
+
+* The optimal model is selected as a non-seasonal ARIMA model with p=1, q=1 integrated by 1 level of differencing.
+* $b_c=1.3958$: Coverage coefficient greater than 1 implies stores with high demand went out of stock first. For example, when 20% stores are stock-out, the overall service level will drop to 73%.<br>
+The following figure illustrates the underlining relationship between *stock_out_pct* and service level:
+```{r}
+# Function for inverse transformation
+Y_inv <- function(fc) {
+  fc$x <- exp(fc$x)
+  fc$mean <- exp(fc$mean)
+  fc$lower <- exp(fc$lower)
+  fc$upper <- exp(fc$upper)
+  return(fc)
+}
+
+# Interpretation of coverage coefficient
+bc <- dr10_fit$coef['Xc']
+stock_out_pct = seq(0, 100, length.out=1001)
+s_table = data.frame(stock_out_pct = stock_out_pct,
+                     service_level = ((100-stock_out_pct)/100)^bc,
+                     ref = (100-stock_out_pct)/100)
+s_p <- ggplot(s_table, aes(x=stock_out_pct, y=service_level)) +
+  geom_line() +
+  geom_line(aes(y=ref), linetype=2)
+s_p
+sl_s20 <- round(s_table$service_level[which(s_table$stock_out_pct==20)], digits=2)
+message('At 20% stock out, the service level will drop to ', sl_s20)
+```
+<br>
+
+* $b_d=0.5107$: The figure below shows the underlining relationship between *discount_pct* and sales boosted ($d_m^{b_d}$), in which at 40% discount, the sales will be boosted by 1.75:
+```{r}
+# Interpretation of discount coefficient
+bd <- dr10_fit$coef['Xd']
+dv = seq(0, 100, length.out=10001)
+dc <- data.frame(discount_pct = dv,
+                 sales_boost = discount_curve(dv)^bd,
+                 ref = (0.02*dv+1)^bd)
+ggplot(dc, aes(x=discount_pct, y=sales_boost)) +
+  geom_line() +
+  geom_line(aes(y=ref), linetype=2)
+sb_d40 <- round(dc$sales_boost[which(dc$discount_pct==40)], digits=2)
+message('At 40% discount, the sales will boosted by ', sb_d40)
+```
+
+<br>
+
+**7.3.5 Forecast**<br>
+The following figures present the forecast and residual plots of the Dynamic Regression model:
+```{r}
+# Forecast
+dr10_fc <- forecast(dr10_fit, xreg=ts10_test[,c('Xc', 'Xd')], level=c(0,0))
+## inverse transform the values
+dr10_fci <- Y_inv(dr10_fc)
+
+# Plot
+autoplot(dr10_fci)  + autolayer(ts10s_test)
+checkresiduals(dr10_fc)
+```
+
+<br>
+A linear regression model is fitted as benchmark. The linear regression model models the external regressors with white noise error. Below is the forecast of the linear regression model:
+```{r}
+# Fit linear-regression model
+lm10_fit <- auto.arima(ts10_train[,'Y'], xreg=ts10_train[,c('Xc', 'Xd')], d=0, D=0, max.p=0, max.q=0, max.P=0, max.Q=0)
+#summary(lm10_fit)
+
+# Forecast
+lm10_fc <- forecast(lm10_fit, xreg=ts10_test[,c('Xc', 'Xd')], level=c(0,0))
+## exp to inverse transform the values
+lm10_fci <- Y_inv(lm10_fc)
+
+# Plot
+autoplot(lm10_fci)  + autolayer(ts10s_test)
+#checkresiduals(lm10_fc)
+```
+
+<br>
+
+**7.3.6 Model Performance**<br>
+Performance of the Dynamic Regression model:
+```{r}
+rmse_e <- function(e) {
+  round(sqrt(mean(e^2, na.rm=T)), digits=2)
+}
+
+
+rmse <- function(pred, actual) {
+  rmse_e(pred-actual)
+}
+
+mase <- function(pred, actual) {
+  l <- length(pred)
+  round(sum(abs(pred-actual))/sum(abs(diff(actual)))*(l-1)/l, digits=2)
+}
+
+# tsCV
+get_DR_rmse <- function(ts_train, ts_test) {
+  dr_fit <- auto.arima(ts_train[,'Y'], xreg=ts_train[,c('Xc', 'Xd')])
+  dr_fc <- forecast(dr_fit, xreg=ts_test[,c('Xc', 'Xd')])
+  dr_fci <- Y_inv(dr_fc)
+  v_actual <- as.numeric(ts_test[,'sales_qty'])
+  return(rmse(as.numeric(dr_fci$mean), v_actual))
+}
+
+get_DRi_rmse <- function(i) {
+  ts_train <- head(ts10_train, i)
+  ts_test <- ts10_train[(i+1):(i+12),]
+  return(get_DR_rmse(ts_train, ts_test))
+}
+
+dr10_is <- seq(nrow(ts10_train)/2, nrow(ts10_train)-12)
+dr10_tscv <- data.frame(i = dr10_is, rmse = sapply(dr10_is, get_DRi_rmse))
+
+# Performance
+dr10_fci_rmse <- rmse(as.numeric(dr10_fci$mean), ts10s_actual)
+dr10_fci_mase <- mase(as.numeric(dr10_fci$mean), ts10s_actual)
+dr10_tscv_rmse <- round(mean(dr10_tscv$rmse), digits=2)
+message("Dynamic Regression model: MASE=", dr10_fci_mase, " RMSE=", dr10_fci_rmse, " RMSE(tsCV)=", dr10_tscv_rmse)
+```
+
+<br>
+Performance of the Linear Regression model as benchmark:
+```{r}
+# tsCV
+get_lm_rmse <- function(ts_train, ts_test) {
+  lm_fit <- auto.arima(ts_train[,'Y'], xreg=ts_train[,c('Xc', 'Xd')], d=0, D=0, max.p=0, max.q=0, max.P=0, max.Q=0)
+  lm_fc <- forecast(lm_fit, xreg=ts_test[,c('Xc', 'Xd')])
+  lm_fci <- Y_inv(lm_fc)
+  v_actual <- as.numeric(ts_test[,'sales_qty'])
+  return(rmse(as.numeric(lm_fci$mean), v_actual))
+}
+
+get_lmi_rmse <- function(i) {
+  ts_train <- head(ts10_train, i)
+  ts_test <- ts10_train[(i+1):(i+12),]
+  return(get_lm_rmse(ts_train, ts_test))
+}
+
+lm10_is <- seq(nrow(ts10_train)/2, nrow(ts10_train)-12)
+lm10_tscv <- data.frame(i = lm10_is, rmse = sapply(lm10_is, get_lmi_rmse))
+
+# Performance
+lm10_fci_rmse <- rmse(as.numeric(lm10_fci$mean), ts10s_actual)
+lm10_fci_mase <- mase(as.numeric(lm10_fci$mean), ts10s_actual)
+lm10_tscv_rmse <- round(mean(lm10_tscv$rmse), digits=2)
+message("Linear Regression model: MASE=", lm10_fci_mase, " RMSE=", lm10_fci_rmse, " RMSE(tsCV)=", lm10_tscv_rmse)
+```
+
+<br>
+Note that the tsCV error of Dynamic Regression is quite high, because one of the cross-validation folds yielded very high error. This implies the **robustness issue** of Dynamic Regression: it works well for most cases, while it may result in abnormal output given certain special input pattern.
+
+<br>
+
