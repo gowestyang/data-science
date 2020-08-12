@@ -8,7 +8,7 @@ Here you will find templates of frequently used models, including
     - model fitting and interpretation
     - handling unbalanced class
     - cross-validation
-- Time-Series Forecast Foundamentals
+- Time-Series Forecast Fundamentals
     - Holt-Winters Model
     - Time-Series Stationary
     - ARIMA, Dynamic Regression and Dynamic Harmonic Regression
