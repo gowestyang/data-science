@@ -1,0 +1,402 @@
+---
+title: "Basic Algorithms and Exponential Weighted Forecast"
+author: "Yang Xi"
+date: "17 Jan, 2018"
+output:
+  html_document:
+    toc: 1
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+```
+
+<br>
+
+# 3. Basic Algorithms
+The section will introduce several basic algorithms of time-series forecast. These algorithms are usually used as benchmarks of more complicated methods.
+
+<br>
+
+### 3.1 Example: Monthly Sales Data of an Item
+In this section, monthly sales data of item (id=10) will be used as an example. The following figures show the sample data’s time-series plots and ACF plots:
+```{r, message=FALSE}
+library(dplyr)
+library(fpp2)
+
+load('../../data/(2017) Time Series/time_series_monthly.rdata')
+
+dfItem10 <- dfSalesMonthly %>%
+  filter(item_id == 10 & first_date >='2008-01-01' & first_date <='2013-12-31') %>%
+  as.data.frame() %>%
+  select(-item_id)
+
+ts10 <- select(dfItem10, -first_date)
+row.names(ts10) <-dfItem10$first_date
+ts10 <- ts(ts10, start=c(2008, 1), frequency=12)
+ts10s <- ts10[,'sales_qty']
+autoplot(ts10s)
+```
+
+```{r}
+ggAcf(ts10s)
+```
+
+<br>
+For this sample data:
+
+* Year 2008 – 2012 data will be used as **training set**
+* Year 2013 data will be the **test set**
+```{r}
+ts10s_train <- window(ts10s, end = c(2013, 0))
+ts10s_test <- window(ts10s, start = c(2013, 1))
+ts10s_actual <- as.numeric(ts10s_test)
+
+rmse_e <- function(e) {
+  round(sqrt(mean(e^2, na.rm=T)), digits=2)
+}
+
+
+rmse <- function(pred, actual) {
+  rmse_e(pred-actual)
+}
+
+mase <- function(pred, actual) {
+  l <- length(pred)
+  round(sum(abs(pred-actual))/sum(abs(diff(actual)))*(l-1)/l, digits=2)
+}
+```
+
+<br>
+
+### 3.2 Naïve, Mean, Seasonal Naïve
+**Naïve model** uses the last value of the training data as the forecast, while Mean model uses the mean value of the training data as the forecast.<br>
+**Seasonal Naïve model** uses the values of data in the previous defined season as forecast.<br>
+The following figures illustrate the forecasts and residual plots of these models respectively.
+```{r}
+# Naive
+fc_naive <- naive(ts10s_train, h = 12)
+autoplot(fc_naive, ylim=c(-2500, 9000)) + autolayer(ts10s_test)
+checkresiduals(fc_naive)
+
+fc_naive_rmse <- rmse(as.numeric(fc_naive$mean), ts10s_actual)
+fc_naive_mase <- mase(as.numeric(fc_naive$mean), ts10s_actual)
+
+tscv_naive <- tsCV(ts10s_train, naive, h = 12)
+tscv_naive_rmse <- rmse_e(as.numeric(tscv_naive))
+message("Naive model: MASE=", fc_naive_mase, " RMSE=", fc_naive_rmse, " RMSE(tsCV)=", tscv_naive_rmse)
+```
+
+```{r}
+# Mean
+fc_mean <- meanf(ts10s_train, h = 12)
+autoplot(fc_mean, ylim=c(-1000, 4500)) + autolayer(ts10s_test)
+checkresiduals(fc_mean)
+
+fc_mean_rmse <- rmse(as.numeric(fc_mean$mean), ts10s_actual)
+fc_mean_mase <- mase(as.numeric(fc_mean$mean), ts10s_actual)
+
+tscv_mean <- tsCV(ts10s_train, meanf, h = 12)
+tscv_mean_rmse <- rmse_e(as.numeric(tscv_mean))
+message("Mean model: MASE=", fc_mean_mase, " RMSE=", fc_mean_rmse, " RMSE(tsCV)=", tscv_mean_rmse)
+```
+```{r}
+# Seasonal Naive
+fc_snaive <- snaive(ts10s_train, h = 12)
+autoplot(fc_snaive, ylim=c(-1000, 4500)) + autolayer(ts10s_test)
+checkresiduals(fc_snaive)
+
+fc_snaive_rmse <- rmse(as.numeric(fc_snaive$mean), ts10s_actual)
+fc_snaive_mase <- mase(as.numeric(fc_snaive$mean), ts10s_actual)
+
+tscv_snaive <- tsCV(ts10s_train, snaive, h = 12)
+tscv_snaive_rmse <- rmse_e(as.numeric(tscv_snaive))
+message("snaive model: MASE=", fc_snaive_mase, " RMSE=", fc_snaive_rmse, " RMSE(tsCV)=", tscv_snaive_rmse)
+```
+
+<br>
+Table below summarizes the performance of these models:
+```{r}
+data.frame(Model=c("Naive","Mean","Seasonal Naive"),
+           `MASE(test)`=c(fc_naive_mase,fc_mean_mase,fc_snaive_mase), 
+           `RMSE(test)`=c(fc_naive_rmse,fc_mean_rmse,fc_snaive_rmse),
+           `RMSE(tsCV)`=c(tscv_naive_rmse,tscv_mean_rmse,tscv_snaive_rmse)) %>%
+  knitr::kable()
+
+```
+
+<br>
+
+# 4 Exponential Weighted Forecast
+### 4.1 Simple Exponential Smoothing (SES)
+Exponential smoothing is a technique to smooth time series data using the exponential window function. Whereas in the simple moving average the past observations are weighted equally, exponential functions are used to assign exponentially decreasing weights over time.
+
+<br>
+
+**4.1.1	Definition**<br>
+Let
+$$ \hat{y_{t+h|t}}=\text{point forcast of }y_{t+h}\text{ given data }y_{1},...,y_{t} $$
+Forecast Equation:
+$$ \hat{y_{t+h|t}}= \alpha y_{t}+\alpha(1-\alpha)y_{t-1}+\alpha(1-\alpha)^{2}y_{t-2}+...\text{ where } 0\leq\alpha\leq 1$$
+
+<br>
+**4.1.2	Parameter Selection**<br>
+Let
+$$ \hat{y_{t+h|t}}=l_{t} $$
+The forecast equation can be written as:
+$$ l_{t}=\alpha y_{t}+(1-\alpha)l_{t-1} $$
+The parameters, $\alpha$ and $l_{0}$ can be chosen by minimizing the squared error.
+
+<br>
+**4.1.3 Example: Monthly Sales Data of an Item**<br>
+I will use the same item with ID 10 as an example.<br>
+Fit an SES model to the training data yields the following results:
+```{r}
+fc_ses <- ses(ts10s_train, h = 12)
+
+summary(fc_ses)
+```
+
+<br>
+Note that the estimated parameters are listed in the results, where $\alpha=0.1814$ and $l_{0=494.5198}$. “sigma” is the standard deviation of the residuals. Figure below demonstrates the visualization of the smoothed training data, which is presented by the red line:
+```{r}
+autoplot(ts10s_train) + autolayer(fitted(fc_ses))
+```
+<br>
+The following figures show the forecast and residual plot of the SES model:
+```{r}
+autoplot(fc_ses, ylim=c(0, 3500))  + autolayer(ts10s_test)
+checkresiduals(fc_ses)
+```
+<br>
+Performance of the SES model:
+```{r}
+fc_ses_rmse <- rmse(as.numeric(fc_ses$mean), ts10s_actual)
+fc_ses_mase <- mase(as.numeric(fc_ses$mean), ts10s_actual)
+
+tscv_ses <- tsCV(ts10s_train, ses, h = 12)
+tscv_ses_rmse <- rmse_e(as.numeric(tscv_ses))
+message("SES model: MASE=", fc_ses_mase, " RMSE=", fc_ses_rmse, " RMSE(tsCV)=", tscv_ses_rmse)
+```
+
+<br>
+
+### 4.2 Exponential Smoothing with Trend: Holt’s Linear Trend Model
+**4.2.1 Definition**<br>
+Recall that in SES,
+$$ \hat{y_{t+h|t}}=l_{t} $$
+$$ l_{t}=\alpha y_{t}+(1-\alpha)l_{t-1} $$
+Holt’s Linear Trend model added a trend component to the SES model:
+$$ \hat{y_{t+h|t}}=l_{t}+hb_{t}$$
+where,
+$$ b_{t}=\beta^{*}(l_{t}-l_{t-1})+(1-\beta^{*})b_{t-1},\text{ where }0\leq \beta^{*}\leq1 $$
+
+<br>
+**4.2.2 Parameter Selection**<br>
+The parameters, $\alpha$, $\beta^{*}$, $l_{0}$ and $b_{0}$ can be chosen by minimizing the squared error.
+
+<br>
+**4.2.3 Example: Monthly Sales Data of an Item**<br>
+I will use the same item with ID 10 as an example.<br>
+Fit a Holt’s Linear Trend model to the training data yields the following results:
+```{r}
+fc_holtl <- holt(ts10s_train, h = 12, damped=F)
+
+summary(fc_holtl)
+```
+
+<br>
+Note that the parameters, $\alpha$, $\beta^{*}$, $l_{0}$ and $b_{0}$  are estimated and listed in the summary.
+
+<br>
+The following figures show the forecast and residual plot of the Holt’s Linear Trend model:
+```{r}
+autoplot(fc_holtl, ylim=c(0, 3500))  + autolayer(ts10s_test)
+checkresiduals(fc_holtl)
+```
+
+<br>
+Performance of Holt’s Linear Trend model:
+```{r}
+fc_holtl_rmse <- rmse(as.numeric(fc_holtl$mean), ts10s_actual)
+fc_holtl_mase <- mase(as.numeric(fc_holtl$mean), ts10s_actual)
+
+tscv_holtl <- tsCV(ts10s_train, holt, h = 12, damped=F)
+tscv_holtl_rmse <- rmse_e(as.numeric(tscv_holtl))
+message("Holt's Linear Trend model: MASE=", fc_holtl_mase, " RMSE=", fc_holtl_rmse, " RMSE(tsCV)=", tscv_holtl_rmse)
+```
+
+<br>
+
+### 4.3 Damped Holt’s Trend Model
+**4.3.1 Definition**<br>
+Holt’s Trend model is generalized by adding a damping parameter $\phi$ to the trend component:
+$$ \hat{y_{t+h|t}}=l_{t}+(\phi+\phi^{2}+...+\phi^{h})b_{t},\text{ where }0\leq\phi\leq 1 $$
+$$ l_{t}=\alpha y_{t}+(1-\alpha)(l_{t-1}+\phi b_{t-1} $$
+$$ b_{t}=\beta^{*}(l_{t}-l_{t-1})+(1-\beta^{*})\phi b_{t-1} $$
+If $\phi=1$, it is identical to Holt’s Linear Trend model;<br>
+If $\phi=0$, it is identical to SES model.
+
+<br>
+**4.3.2 Parameter Selection**<br>
+The parameters, $\alpha$, $\beta^{*}$, $l_{0}$, $b_{0}$ and $\phi$ can be chosen by minimizing the squared error.
+
+<br>
+**4.3.3 Example: Monthly Sales Data of an Item**<br>
+I will use the same item with ID 10 as an example.<br>
+Fit a Holt’s Trend model to the training data yields the following results:
+```{r}
+fc_holt <- holt(ts10s_train, h = 12, damped=T)
+
+summary(fc_holt)
+```
+<br>
+Note that the parameters, $\alpha$, $\beta^{*}$, $l_{0}$, $b_{0}$ and $\phi$ are estimated and listed in the summary.
+
+<br>
+The following figures show the forecast and residual plot of the Holt’s Trend model:
+```{r}
+autoplot(fc_holt, ylim=c(0, 3500))  + autolayer(ts10s_test)
+checkresiduals(fc_holt)
+```
+
+<br>
+Performance of Holt’s Trend model:
+```{r}
+fc_holt_rmse <- rmse(as.numeric(fc_holt$mean), ts10s_actual)
+fc_holt_mase <- mase(as.numeric(fc_holt$mean), ts10s_actual)
+
+tscv_holt <- tsCV(ts10s_train, holt, h = 12, damped=T)
+tscv_holt_rmse <- rmse_e(as.numeric(tscv_holt))
+message("Holt's Trend model: MASE=", fc_holt_mase, " RMSE=", fc_holt_rmse, " RMSE(tsCV)=", tscv_holt_rmse)
+```
+
+<br>
+
+### 4.4 Exponential Smoothing with Trend and Seasonality: Holt-Winters Model
+**4.4.1 Definition**<br>
+Denote the Holt’s Trend model as $\hat{H_{t+h|t}}$, recall that
+$$ \hat{H_{t+h|t}}=l_{t}+(\phi+\phi^{2}+...+\phi^{h})b_{t},\text{ where }0\leq\phi\leq 1 $$
+Holt-Winters model added a seasonal component $s_{t-m+h_m^+}$. There are two variations:
+
+1. Additive Model
+$$ \hat{y_{t+h|t}}=\hat{H_{t+h|t}}+s_{t-m+h_m^+} $$
+$$l_t=\alpha(y_t-s_{t-m})+(1-\alpha)(l_{t-1}+\phi b_{t-1}) $$
+$$ b_t= \beta^*(l_t-l_{t-1})+(1-\beta^*)\phi b_{t-1}$$
+$$ s_t=\gamma(y_t-l_{t-1}-b_{t-1})+(1-\gamma)s_{t-m} $$
+2. Multiplicative Model
+$$ \hat{y_{t+h|t}}=\hat{H_{t+h|t}}\cdot s_{t-m+h_m^+} $$
+$$l_t=\frac{\alpha y_t}{s_{t-m}}+(1-\alpha)(l_{t-1}+\phi b_{t-1}) $$
+$$ b_t= \beta^*(l_t-l_{t-1})+(1-\beta^*)\phi b_{t-1}$$
+$$ s_t=\frac{\gamma y_t}{l_{t-1}-b_{t-1}}+(1-\gamma)s_{t-m} $$
+where,
+$$ m=\text{period of seasonality} $$
+$$ 0\leq\gamma\leq 1-\alpha$$
+
+Note that, seasonal component averages zero from the additive model, and one for the multiplicative model.<br>
+In general, multiplication method is used when seasonal variation increases with the level of the series.
+
+<br>
+**4.4.2	Example: Monthly Sales Data of an Item**<br>
+I will use the same item with ID 10 as an example.<br>
+Fit a Holt-Winters model (additive) to the training data yields the following results:
+```{r}
+fc_hwa <- hw(ts10s_train, seasonal = "additive", h = 12, damped=T)
+summary(fc_hwa)
+```
+
+<br>
+Fit a Holt-Winters model (multiplicative) to the training data yields the following results:
+```{r}
+fc_hwm <- hw(ts10s_train, seasonal = "multiplicative", h = 12, damped=T)
+summary(fc_hwm)
+```
+
+<br>
+Figure below plots the forecast of additive model; and the multiplicative model is shown as the red line.
+
+```{r}
+autoplot(fc_hwa, ylim=c(0, 3500)) + autolayer(fc_hwm$mean) + autolayer(ts10s_test) 
+checkresiduals(fc_hwa)
+checkresiduals(fc_hwm)
+```
+
+<br>
+Performance of Holt-Winters model:
+```{r}
+fc_hwa_rmse <- rmse(as.numeric(fc_hwa$mean), ts10s_actual)
+fc_hwa_mase <- mase(as.numeric(fc_hwa$mean), ts10s_actual)
+
+tscv_hwa <- tsCV(ts10s_train, hw, seasonal = "additive", h = 12, damped=T)
+tscv_hwa_rmse <- rmse_e(as.numeric(tscv_hwa))
+message("Holt-Winters Additive model: MASE=", fc_hwa_mase, " RMSE=", fc_hwa_rmse, " RMSE(tsCV)=", tscv_hwa_rmse)
+
+fc_hwm_rmse <- rmse(as.numeric(fc_hwm$mean), ts10s_actual)
+fc_hwm_mase <- mase(as.numeric(fc_hwm$mean), ts10s_actual)
+
+tscv_hwm <- tsCV(ts10s_train, hw, seasonal = "multiplicative", h = 12, damped=T)
+tscv_hwm_rmse <- rmse_e(as.numeric(tscv_hwm))
+message("Holt-Winters Multiplicative model: MASE=", fc_hwm_mase, " RMSE=", fc_hwm_rmse, " RMSE(tsCV)=", tscv_hwm_rmse)
+```
+
+<br>
+
+### 4.5 State Space Models for Exponential Smoothing
+Sections above have introduced types of trend component and seasonal component of exponential smoothing models. The combinations of these types result in a set of states. Moreover, the errors can be further classified into additive and multiplicative. As a result, the taxonomy of the state space is denoted by (Error, Trend, Seasonal) format, namely **ETS model**. The common values of ETS components includes:
+
+*	Error (E) = {A: additive, M: multiplicative}
+*	Trend (T) = {N: none, A: additive, Ad: additive damped}
+*	Seasonal (S) = {N: none, A: additive, M: multiplicative}
+
+<br>
+The ETS model targets to choose the best model from the state space by minimizing the corrected Akaike’s Information Criterion (AICC).
+
+<br>
+**4.5.1	Example: Monthly Sales Data of an Item**<br>
+I will use the same item with ID 10 as an example.<br>
+Fit an ETS model to the training data yields the following results:
+```{r}
+m_ets <- ets(ts10s_train)
+fc_ets <- forecast(m_ets, h=12)
+summary(m_ets)
+```
+<br>
+The selected model is a Holt’s Linear Trend model with multiplication error.
+
+<br>
+The following figures show the forecast and residual plot of the ETS model:
+```{r}
+autoplot(fc_ets, ylim=c(0, 3500))  + autolayer(ts10s_test)
+checkresiduals(fc_ets)
+```
+
+<br>
+Performance of ETS model:
+```{r}
+fc_ets_rmse <- rmse(as.numeric(fc_ets$mean), ts10s_actual)
+fc_ets_mase <- mase(as.numeric(fc_ets$mean), ts10s_actual)
+
+tscv_ets <- tsCV(ts10s_train, function(x,h) forecast(ets(x),h=h), h = 12)
+tscv_ets_rmse <- rmse_e(as.numeric(tscv_ets))
+message("ETS model: MASE=", fc_ets_mase, " RMSE=", fc_ets_rmse, " RMSE(tsCV)=", tscv_ets_rmse)
+```
+
+<br>
+
+### 4.6 Summary
+Table below summarizes the performances of the basic models and the exponential smoothing models from the examples in the above sections:
+```{r}
+data.frame(Model=c("Naive","Mean","Seasonal Naive","SES","Holt's Linear Trend","Holt's Trend",
+                   "Holt-Winters Additive","Holt-Winters Multiplicative","ETS"),
+           `MASE(test)`=c(fc_naive_mase,fc_mean_mase,fc_snaive_mase,fc_ses_mase,fc_holtl_mase,fc_holt_mase,
+                          fc_hwa_mase,fc_hwm_mase,fc_ets_mase), 
+           `RMSE(test)`=c(fc_naive_rmse,fc_mean_rmse,fc_snaive_rmse,fc_ses_rmse,fc_holtl_rmse,fc_holt_rmse,
+                          fc_hwa_rmse,fc_hwm_rmse,fc_ets_rmse),
+           `RMSE(tsCV)`=c(tscv_naive_rmse,tscv_mean_rmse,tscv_snaive_rmse,tscv_ses_rmse,tscv_holtl_rmse,tscv_holt_rmse,
+                          tscv_hwa_rmse,tscv_hwm_rmse,tscv_ets_rmse)) %>%
+  knitr::kable()
+
+```
+
+<br>

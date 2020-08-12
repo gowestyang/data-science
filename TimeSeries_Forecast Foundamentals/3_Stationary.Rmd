@@ -1,0 +1,161 @@
+---
+title: "Stationary"
+author: "Yang Xi"
+date: "17 Jan, 2018"
+output:
+  html_document:
+    toc: 1
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+```
+
+<br>
+
+# 5. Stationary
+A stationary time series is one whose statistical properties such as mean, variance, autocorrelation, etc. are all constant over time. It is a useful property, as many statistical forecasting methods are based on the assumption that the time series can be rendered approximately stationary through mathematical transformations.
+
+<br>
+
+### 5.1 Variance Stabilization: Box-Cox Transformation
+**5.1.1	Definition**<BR>
+If the time series data show increasing variation as the level of series increases, a transformation can be useful. The figure below demonstrates daily sales data of an item. The following table shows how the variation increases as the level of sales quantity grows higher.
+```{r, message=FALSE}
+library(dplyr)
+library(fpp2)
+
+load('../../data/(2017) Time Series/time_series_daily.rdata')
+
+dfItem6 <- dfSalesDaily %>%
+  filter(item_id == 6 & date >='2008-01-01' & date <='2013-12-31') %>%
+  as.data.frame() %>%
+  select(-item_id)
+
+ts6 <- select(dfItem6, -date)
+row.names(ts6) <- dfItem6$date
+ts6 <- ts(ts6, start=c(2008, 1), frequency=365.25)
+ts6s <- ts6[,'sales_qty']
+autoplot(ts6s)
+
+dfItem6  %>%
+  mutate(year = format(date, '%Y')) %>%
+  group_by(year) %>%
+  summarise(mean = round(mean(sales_qty), 2),
+            var = round(var(sales_qty), 2)) %>%
+  mutate(mean_multiplier = round(mean/first(mean),2),
+         var_multiplier = round(var/first(var),2)) %>%
+  dplyr::select(year,mean,mean_multiplier,var,var_multiplier) %>%
+  knitr::kable()
+
+```
+
+<br>
+Some basic mathematical transformations can be used to stabilize the variations, as listed below sorted by **increasing** stabilizing strength:
+
+1. Square Root
+$$ w_t=\sqrt{y_t}$$
+
+2. Cube Root
+$$ w_t=\sqrt[3]{y_t} $$
+
+3. Logarithm
+$$ w_t=log(t_y) $$
+
+4. Inverse
+$$ w_t=-\frac{1}{y_t}$$
+
+<br>
+
+**5.1.2	Purpose**<br>
+Variance stabilization methods target to transform the time series, so that its variation is not related to its mean. It helps simplify considerations in data analysis, and prepares the data for application of regression-based methods.
+
+<br>
+Note that it is **NOT common to use ETS model with variance stabilization**, because ETS model has the capability to handle the increasing variance directly by using multiplicative components. On the other hand, variance stabilization can be **helpful in ARIMA based models**.
+
+<br>
+
+**5.1.3	Box-Cox Transformation**<br>
+The Box-Cox transformations is a combination of the above basic transformations:
+$$ w_t=\left\{
+  \begin{array}{ll}
+      log(y_t)\qquad\quad\lambda=0\\
+      (y_t^\lambda-1)/\lambda\quad\lambda\neq0
+  \end{array}
+\right.$$
+which yields:
+
+* $\lambda=1$ : No substantive transformation
+* $\lambda=1/2$ : square root + linear transformation
+* $\lambda=1/3$ : cube root + linear transformation
+* $\lambda=0$ : natural logarithm transformation
+* $\lambda=-1$ : inverse transformation
+
+Optimal λ value can be selected by minimizing the coefficient of variation of the subseries.
+
+<br>
+
+**5.1.4 Example: Daily Sales Data of an Item**<br>
+Figure below shows the Box-Cox transformation of the daily sales data using the optimal $\lambda=0.35$ :
+```{r}
+bc_lambda <- BoxCox.lambda(ts6s)
+message("The optimal lambda is ", bc_lambda)
+
+boxcox <- BoxCox(ts6s, lambda=bc_lambda)
+
+autoplot(boxcox)
+
+# List the mean and variance of each year
+data.frame(year=format(dfItem6$date, '%Y'), y=as.numeric(boxcox)) %>%
+  group_by(year) %>%
+  summarise(mean = round(mean(y), 2),
+            var = round(var(y), 2)) %>%
+  mutate(mean_multiplier = round(mean/first(mean),2),
+         var_multiplier = round(var/first(var),2)) %>%
+  dplyr::select(year,mean,mean_multiplier,var,var_multiplier) %>%
+  knitr::kable()
+
+```
+
+<br>
+
+### 5.2 Mean Stabilization
+A time series with trend component can be transformed for mean stabilization through removing the trend component (de-trend). Differencing methods are basic ways to remove trend component from a time series.
+
+<br>
+
+**5.2.1 Non-Seasonal Differencing**<br>
+Non-Seasonal Differencing is the differential of each value and its previous value:
+$$ w_t=y_t-y_{t-1} $$
+
+<br>
+Figure below show the non-seasonal differencing of the daily sales data:
+```{r}
+d_ns <- diff(ts6s)
+autoplot(d_ns)
+```
+
+<br>
+
+**5.2.2 Seasonal Differencing**<br>
+Seasonal Differencing is the differential of each value and the value in the previous defined season:
+$$ w_t=y_t-y_{t-m} $$
+
+Figure below show the seasonal differencing of the daily sales data, with weekly seasonality (m=7):
+```{r}
+d_s <- diff(ts6s, lag=7)
+autoplot(d_s)
+```
+
+
+
+
+
+
+
+
+
+
+
+
