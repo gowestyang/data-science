@@ -14,5 +14,6 @@ Here you will find templates of frequently used models, including
     - ARIMA, Dynamic Regression and Dynamic Harmonic Regression
 - Association Rule
     - rule mining, interpretation and visualization
-
+- Optimization
+    - Integer Programming: Vehicle Routing Problem
 More on the way :)
