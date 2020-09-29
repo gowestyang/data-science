@@ -19,4 +19,5 @@ Here you will find templates of frequently used models, including
     - rule mining, interpretation and visualization
 - Optimization
     - Integer Programming: Vehicle Routing Problem
+
 More on the way :)
