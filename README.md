@@ -5,18 +5,19 @@ Yang Xi's machine learning and analytics templates
 
 Here you will find templates of frequently used models, including
 - Supervised Learning
-    - model fitting and interpretation
-    - handling unbalanced class
-    - cross-validation
-- Interpretable Machine Learning
-    - Local Interpretable Model-agnostic Explanations (LIME)
-    - Interactions-based Method for Explanation (IME, Shapley Value)
-- Time-Series Forecast Fundamentals
-    - Holt-Winters Model
-    - Time-Series Stationary
-    - ARIMA, Dynamic Regression and Dynamic Harmonic Regression
-- Association Rule
-    - rule mining, interpretation and visualization
+    - Interpretable Machine Learning
+        - Local Interpretable Model-agnostic Explanations (LIME)
+        - Interactions-based Method for Explanation (IME, Shapley Value)
+    - Linear and tree-based models
+        - Model fitting, regularization, cross-validation and interpretation
+        - Handle unbalanced class
+    - Time-Series Forecast
+        - Holt-Winters Model
+        - Time-Series Stationary
+        - ARIMA, Dynamic Regression and Dynamic Harmonic Regression
+- Unsupervised Learning
+    - Association Rule
+        - Rule mining, interpretation and visualization
 - Optimization
     - Integer Programming: Vehicle Routing Problem
 
