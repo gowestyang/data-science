@@ -1,0 +1,110 @@
+---
+title: "Probability Distribution"
+author: "Yang Xi"
+date: "09 Jul, 2016"
+output:
+  html_document:
+    toc: 1
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+```
+
+<br>
+
+# Sampling Distribution of **Sample Mean**
+If population is **normal** with mean `u` and standard deviation `sigma`, the sampling distribution of sample mean is also normally distributed.<br>
+`n` is the sample size.
+```{r}
+u <- 10
+sigma <- 2
+n <- 100
+
+mean_sample_mean <- u
+std_sample_mean <- sigma/sqrt(n)
+
+print(paste0('mean of sample mean=',mean_sample_mean, '  std of sample mean=', std_sample_mean))
+```
+
+<br>
+
+### Finite Population Correction
+Apply the finite population correction if:
+
+* sampling is **without** replacement
+* sample is is large relative to population ($n>0.05*N$)
+```{r}
+u <- 10
+sigma <- 2
+n <- 100
+N <- 1000
+
+std_sample_mean = sigma/sqrt(n)*sqrt((N-n)/(N-1))
+print(paste0('corrected std of sample mean=', sprintf("%0.5f", std_sample_mean)))
+```
+
+<br>
+
+### Central Limited Theorem
+Even if the population is **not normal**, sample means from the population will be approximately normal as long as the sample size is large enough (n > 25).
+
+<br>
+
+# Sampling Distribution of **Sample Proportion**
+Given the population is a basket of white/black balls, with probability of `P` being white.<br>
+The **sample proportion** has binomial distribution, but can be approximated by a normal distribution when $nP(1-P)>9$.
+```{r}
+P <- 0.4
+n <- 200
+
+mean_sample_proportion <- P
+std_sample_proportion <- sqrt(P*(1-P)/n)
+
+print(paste0('mean of sample proportion=',mean_sample_proportion, '  std of sample proportion=', sprintf("%0.5f", std_sample_proportion)))
+```
+
+<br>
+
+# Sampling Distribution of **Sample Variance**
+Draw samples with size `n` from population with standard deviation `sigma`:
+```{r}
+sigma <- 2
+n <- 100
+
+mean_sample_variance <- sigma^2
+
+# If population is normal
+var_sample_variance <- 2*sigma^4/(n-1)
+
+print(paste0('mean of sample variance=',mean_sample_variance, '  var of sample variance=', sprintf("%0.5f", var_sample_variance)))
+
+```
+
+<br>
+
+## Chi-Square Distribution
+Let `s` be the sample standard deviation.<br>
+If population distribution is normal, then $(n-1)s^2/sigma^2$ has a chi-square distribution with n-1 degree of freedom.
+
+<br>
+
+### Example
+An air-con product must hold a specific temperature with little variation.<br>
+Requirement calls for a standard deviation of no more than 4 degrees (or variance of 16 degrees2).<br>
+A sample of 14 air-cons is to be tested.<br>
+What is the **upper limit of the sample variance**, such that the probability of exceeding this limit is less than 0.05?
+```{r}
+sigma <- 4
+n <- 14
+alpha <- 0.05
+
+X2 <- qchisq(alpha, df=n-1, lower.tail=FALSE)
+
+s2 <- X2*sigma^2/(n-1)
+print(paste('the upper limit of the sample variance is', sprintf("%0.2f", s2)))
+
+```
+
+<br>

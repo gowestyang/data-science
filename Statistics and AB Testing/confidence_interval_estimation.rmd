@@ -1,0 +1,58 @@
+---
+title: "Confidence Interval Estimation"
+author: "Yang Xi"
+date: "09 Jul, 2016"
+output:
+  html_document:
+    toc: 1
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+```
+
+<br>
+
+# Confidence Interval of Population Mean
+### With Known Population Variance (z-Distribution)
+```{r}
+x <- c(1,2,3,4,5,6,7,8,9,10)
+n <- length(x)
+alpha <- 0.05
+
+x_avg <- mean(x)
+x_std_p <- sd(x)*sqrt((n-1)/n)
+error <- -qnorm(alpha/2)*x_std_p/sqrt(n)
+print(paste('left', sprintf("%0.5f", x_avg-error),'right:', sprintf("%0.5f", x_avg+error)))
+```
+
+<br>
+
+### With Unknown Population Variance (t-Distribution)
+```{r}
+x <- c(1,2,3,4,5,6,7,8,9,10)
+n <- length(x)
+alpha <- 0.05
+
+x_avg <- mean(x)
+x_std <- sd(x)
+error <- -qt(alpha/2, df=n-1)*x_std/sqrt(n)
+print(paste('left', sprintf("%0.5f", x_avg-error),'right:', sprintf("%0.5f", x_avg+error)))
+```
+
+<br>
+
+# Confidence Interval of Population Proportion
+Distribution of the sample proportion is approximately normal if the sample size is large.
+```{r}
+n <- 100
+p <- 0.25
+alpha <- 0.05
+
+error <- -qnorm(alpha/2)*sqrt(p*(1-p)/n)
+
+print(paste('left', sprintf("%0.5f", p-error),'right:', sprintf("%0.5f", p+error)))
+```
+
+<br>

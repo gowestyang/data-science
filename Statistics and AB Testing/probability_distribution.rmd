@@ -1,0 +1,150 @@
+---
+title: "Probability Distribution"
+author: "Yang Xi"
+date: "09 Jul, 2016"
+output:
+  html_document:
+    toc: 1
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+```
+
+<br>
+
+# Discrete Distribution
+```{r}
+x <- c(0, 1, 2)
+Px <- c(0.25, 0.5, 0.25)
+
+Ex <- weighted.mean(x, Px)
+Var <- sum((x-Ex)^2*Px)
+Std <- sqrt(Var)
+
+print(paste0('mean=',Ex, ' variance=', Var, ' standard deviation=',sprintf("%0.5f", Std)))
+```
+
+<br>
+
+### Binomial Distribution
+Probability of `x` successes in `n` trials, given the probability of success `P` on each trail (success or fail).
+
+* Label manufactured items as acceptable or defective
+* Survey responses of yes or no
+```{r}
+x <- 4
+n <- 12
+P <- 0.2
+
+Ex <- n*P
+Var <- n*P*(1-P)
+Std <- sqrt(Var)
+print(paste0('mean=',Ex, ' variance=', Var, ' standard deviation=',sprintf("%0.5f", Std)))
+
+Px <- dbinom(x, size=n, prob=P)
+Fx <- pbinom(x, size=n, prob=P, lower.tail = TRUE)
+
+print(paste0('PDF=',Px,' CDF=',Fx))
+```
+
+<br>
+
+### Hypergeometric Distribution
+The finite population contains `m` white balls and `n` black balls. If draw `k` balls without replacement, what is the probability of draw `x` white balls.
+```{r}
+Px <- dhyper(x=2, m=4, n=6, k=3)
+Fx <- phyper(x, m=4, n=6, k=3, lower.tail = TRUE)
+print(paste0('PDF=',Px,' CDF=',Fx))
+```
+
+<br>
+
+### Poisson Distribution
+Probability of `x` occurrence per unit(time), given the expected number of occurrence per unit(time) `lambda`.
+```{r}
+x <- 2
+lambda <- 0.5
+
+Ex <- lambda
+Var <- lambda
+Std <- sqrt(lambda)
+print(paste0('mean=',Ex, ' variance=', Var, ' standard deviation=',sprintf("%0.5f", Std)))
+
+Px <- dpois(x, lambda)
+Fx <- ppois(x, lambda, lower.tail = TRUE)
+print(paste0('PDF=',sprintf("%0.5f", Px),' CDF=',sprintf("%0.5f", Fx)))
+```
+
+<br>
+
+# Continuous Distribution
+### Uniform Distribution
+```{r}
+x <- 0.4
+a <- 0
+b <- 1
+
+Ex <- (a+b)/2
+Var <- (b-a)^2/12
+Std <- sqrt(Var)
+print(paste0('mean=',Ex, ' variance=', sprintf("%0.5f", Var), ' standard deviation=',sprintf("%0.5f", Std)))
+
+
+Px <- dunif(x, a, b)
+Fx <- punif(x, a, b, lower.tail = TRUE)
+print(paste0('PDF=',sprintf("%0.5f", Px),' CDF=',sprintf("%0.5f", Fx)))
+```
+
+<br>
+
+### Normal Distribution
+```{r}
+x <- 8.6
+m <- 8
+s <- 5
+
+Px <- dnorm(x, m, s)
+Fx <- pnorm(x, m, s, lower.tail = TRUE)
+print(paste0('PDF=',sprintf("%0.5f", Px),' CDF=',sprintf("%0.5f", Fx)))
+```
+
+<br>
+
+### Exponential Distribution
+Probability of time between two occurrence is `x`, given the number of occurrence per unit time `lambda`.<br>
+Commonly used to model the length of time between two occurrences,
+```{r}
+x <- 0.05
+lambda <- 15
+
+Ex <- 1/lambda
+Var <- 1/lambda^2
+Std <- sqrt(Var)
+print(paste0('mean=',sprintf("%0.5f", Ex), ' variance=', sprintf("%0.5f", Var), ' standard deviation=',sprintf("%0.5f", Std)))
+
+Px <- dexp(x, lambda)
+Fx <- pexp(x, lambda, lower.tail = TRUE)
+print(paste0('PDF=',sprintf("%0.5f", Px),' CDF=',sprintf("%0.5f", Fx)))
+
+```
+
+<br>
+
+# Covariance, Correlation and Independence
+The covariance / correlation measures the strength of the linear relationship between two variable.
+
+* If two random variable are statistically independent, the covariance between them is 0.
+* **NOTE**: the converse is not necessarily true.
+```{r}
+x <- c(1,2,3,4,5)
+y <- c(2,1,5,3,2)
+cov(x, y, method="pearson")
+cor(x, y, method="pearson")
+```
+
+<br>
+
+
+

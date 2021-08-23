@@ -4,6 +4,11 @@ Yang Xi's machine learning and analytics templates
 ## Welcome to Yang Xi's machine learning and analytics repo!
 
 Here you will find templates of frequently used models, including
+- Statistics and AB Testing
+- Time-Series Forecast
+    - Holt-Winters Model
+    - Time-Series Stationary
+    - ARIMA, Dynamic Regression and Dynamic Harmonic Regression
 - Supervised Learning
     - Interpretable Machine Learning
         - Local Interpretable Model-agnostic Explanations (LIME)
@@ -11,10 +16,6 @@ Here you will find templates of frequently used models, including
     - Linear and tree-based models
         - Model fitting, regularization, cross-validation and interpretation
         - Handle unbalanced class
-    - Time-Series Forecast
-        - Holt-Winters Model
-        - Time-Series Stationary
-        - ARIMA, Dynamic Regression and Dynamic Harmonic Regression
 - Unsupervised Learning
     - Association Rule
         - Rule mining, interpretation and visualization
