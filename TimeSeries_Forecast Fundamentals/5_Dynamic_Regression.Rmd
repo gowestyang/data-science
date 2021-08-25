@@ -1,7 +1,7 @@
 ---
 title: "Dynamic Regression"
 author: "Yang Xi"
-date: "17 Jan, 2018"
+date: "Created on 17 Jan 2018; Modified on 24 Aug 2021"
 output:
   html_document:
     toc: 1
@@ -44,17 +44,15 @@ Figure below plots the time series including the external regressors:
 library(dplyr)
 library(fpp2)
 
-load('../../data/(2017) Time Series/time_series_monthly.rdata')
+dfItemC <- read.csv('data/time_series_monthly_C.csv')
 
-dfItem10 <- dfSalesMonthly %>%
-  filter(item_id == 10 & first_date >='2008-01-01' & first_date <='2013-12-31') %>%
-  as.data.frame() %>%
+dfItemC <- dfItemC %>%
   mutate(coverage = (100-stock_out_pct)/100) %>%
   select(c(date=first_date, sales_qty, discount_pct, coverage))
 
 # Train test data index
 ## 2008 - 2012 as training, 2013 as testing
-tp10 <- 60
+train_period <- 60
 
 # Smooth outliers in training data
 outlier_smooth <- function(df_train) {
@@ -81,7 +79,7 @@ outlier_smooth <- function(df_train) {
   return(df_train)
 }
 
-dfItem10[1:tp10,] <- outlier_smooth(dfItem10[1:tp10,])
+dfItemC[1:train_period,] <- outlier_smooth(dfItemC[1:train_period,])
 
 # Transform Variables
 ## Function to get a straight line connecting two points
@@ -106,7 +104,7 @@ discount_curve <- function(discount) {
                        get_line(x4, y4, x5, y5, discount))))
 }
 
-dfItem10 <- dfItem10 %>%
+dfItemC <- dfItemC %>%
   mutate(cm = coverage,
          dm = discount_curve(discount_pct),
          Y = log(sales_qty),
@@ -114,18 +112,18 @@ dfItem10 <- dfItem10 %>%
          Xd = log(dm))
 
 # Covert to ts
-ts10 <- select(dfItem10, -date)
-row.names(ts10) <- dfItem10$date
-ts10 <- ts(ts10, start=c(2008, 1), frequency=12)
-ts10s <- ts10[,'sales_qty']
-autoplot(ts10, facets=T)
+tsC <- select(dfItemC, -date)
+row.names(tsC) <- dfItemC$date
+tsC <- ts(tsC, start=c(2008, 1), frequency=12)
+tsCs <- tsC[,'sales_qty']
+autoplot(tsC, facets=T)
 
 # Separate train test sets
 # 2008 - 2012 as training, 2013 as testing
-ts10_train <- window(ts10, end = c(2013, 0))
-ts10_test <- window(ts10, start = c(2013, 1))
-ts10s_test <- window(ts10s, start = c(2013, 1))
-ts10s_actual <- as.numeric(ts10s_test)
+tsC_train <- window(tsC, end = c(2013, 0))
+tsC_test <- window(tsC, start = c(2013, 1))
+tsCs_test <- window(tsCs, start = c(2013, 1))
+tsCs_actual <- as.numeric(tsCs_test)
 ```
 
 <br>
@@ -166,8 +164,8 @@ Note that the data used in this example happen to have no observation matching t
 **7.3.3 ARIMA Parameters**<br>
 By applying `auto.arima()` to the training data, the following model is fitted:
 ```{r}
-dr10_fit <- auto.arima(ts10_train[,'Y'], xreg=ts10_train[,c('Xc', 'Xd')])
-summary(dr10_fit)
+drC_fit <- auto.arima(tsC_train[,'Y'], xreg=tsC_train[,c('Xc', 'Xd')])
+summary(drC_fit)
 ```
 
 <br>
@@ -188,7 +186,7 @@ Y_inv <- function(fc) {
 }
 
 # Interpretation of coverage coefficient
-bc <- dr10_fit$coef['Xc']
+bc <- drC_fit$coef['Xc']
 stock_out_pct = seq(0, 100, length.out=1001)
 s_table = data.frame(stock_out_pct = stock_out_pct,
                      service_level = ((100-stock_out_pct)/100)^bc,
@@ -205,7 +203,7 @@ message('At 20% stock out, the service level will drop to ', sl_s20)
 * $b_d=0.5107$: The figure below shows the underlining relationship between *discount_pct* and sales boosted ($d_m^{b_d}$), in which at 40% discount, the sales will be boosted by 1.75:
 ```{r}
 # Interpretation of discount coefficient
-bd <- dr10_fit$coef['Xd']
+bd <- drC_fit$coef['Xd']
 dv = seq(0, 100, length.out=10001)
 dc <- data.frame(discount_pct = dv,
                  sales_boost = discount_curve(dv)^bd,
@@ -223,30 +221,30 @@ message('At 40% discount, the sales will boosted by ', sb_d40)
 The following figures present the forecast and residual plots of the Dynamic Regression model:
 ```{r}
 # Forecast
-dr10_fc <- forecast(dr10_fit, xreg=ts10_test[,c('Xc', 'Xd')], level=c(0,0))
+drC_fc <- forecast(drC_fit, xreg=tsC_test[,c('Xc', 'Xd')], level=c(0,0))
 ## inverse transform the values
-dr10_fci <- Y_inv(dr10_fc)
+drC_fci <- Y_inv(drC_fc)
 
 # Plot
-autoplot(dr10_fci)  + autolayer(ts10s_test)
-checkresiduals(dr10_fc)
+autoplot(drC_fci)  + autolayer(tsCs_test)
+checkresiduals(drC_fc)
 ```
 
 <br>
 A linear regression model is fitted as benchmark. The linear regression model models the external regressors with white noise error. Below is the forecast of the linear regression model:
 ```{r}
 # Fit linear-regression model
-lm10_fit <- auto.arima(ts10_train[,'Y'], xreg=ts10_train[,c('Xc', 'Xd')], d=0, D=0, max.p=0, max.q=0, max.P=0, max.Q=0)
-#summary(lm10_fit)
+lmC_fit <- auto.arima(tsC_train[,'Y'], xreg=tsC_train[,c('Xc', 'Xd')], d=0, D=0, max.p=0, max.q=0, max.P=0, max.Q=0)
+#summary(lmC_fit)
 
 # Forecast
-lm10_fc <- forecast(lm10_fit, xreg=ts10_test[,c('Xc', 'Xd')], level=c(0,0))
+lmC_fc <- forecast(lmC_fit, xreg=tsC_test[,c('Xc', 'Xd')], level=c(0,0))
 ## exp to inverse transform the values
-lm10_fci <- Y_inv(lm10_fc)
+lmC_fci <- Y_inv(lmC_fc)
 
 # Plot
-autoplot(lm10_fci)  + autolayer(ts10s_test)
-#checkresiduals(lm10_fc)
+autoplot(lmC_fci)  + autolayer(tsCs_test)
+#checkresiduals(lmC_fc)
 ```
 
 <br>
@@ -278,19 +276,19 @@ get_DR_rmse <- function(ts_train, ts_test) {
 }
 
 get_DRi_rmse <- function(i) {
-  ts_train <- head(ts10_train, i)
-  ts_test <- ts10_train[(i+1):(i+12),]
+  ts_train <- head(tsC_train, i)
+  ts_test <- tsC_train[(i+1):(i+12),]
   return(get_DR_rmse(ts_train, ts_test))
 }
 
-dr10_is <- seq(nrow(ts10_train)/2, nrow(ts10_train)-12)
-dr10_tscv <- data.frame(i = dr10_is, rmse = sapply(dr10_is, get_DRi_rmse))
+drC_is <- seq(nrow(tsC_train)/2, nrow(tsC_train)-12)
+drC_tscv <- data.frame(i = drC_is, rmse = sapply(drC_is, get_DRi_rmse))
 
 # Performance
-dr10_fci_rmse <- rmse(as.numeric(dr10_fci$mean), ts10s_actual)
-dr10_fci_mase <- mase(as.numeric(dr10_fci$mean), ts10s_actual)
-dr10_tscv_rmse <- round(mean(dr10_tscv$rmse), digits=2)
-message("Dynamic Regression model: MASE=", dr10_fci_mase, " RMSE=", dr10_fci_rmse, " RMSE(tsCV)=", dr10_tscv_rmse)
+drC_fci_rmse <- rmse(as.numeric(drC_fci$mean), tsCs_actual)
+drC_fci_mase <- mase(as.numeric(drC_fci$mean), tsCs_actual)
+drC_tscv_rmse <- round(mean(drC_tscv$rmse), digits=2)
+message("Dynamic Regression model: MASE=", drC_fci_mase, " RMSE=", drC_fci_rmse, " RMSE(tsCV)=", drC_tscv_rmse)
 ```
 
 <br>
@@ -306,19 +304,19 @@ get_lm_rmse <- function(ts_train, ts_test) {
 }
 
 get_lmi_rmse <- function(i) {
-  ts_train <- head(ts10_train, i)
-  ts_test <- ts10_train[(i+1):(i+12),]
+  ts_train <- head(tsC_train, i)
+  ts_test <- tsC_train[(i+1):(i+12),]
   return(get_lm_rmse(ts_train, ts_test))
 }
 
-lm10_is <- seq(nrow(ts10_train)/2, nrow(ts10_train)-12)
-lm10_tscv <- data.frame(i = lm10_is, rmse = sapply(lm10_is, get_lmi_rmse))
+lmC_is <- seq(nrow(tsC_train)/2, nrow(tsC_train)-12)
+lmC_tscv <- data.frame(i = lmC_is, rmse = sapply(lmC_is, get_lmi_rmse))
 
 # Performance
-lm10_fci_rmse <- rmse(as.numeric(lm10_fci$mean), ts10s_actual)
-lm10_fci_mase <- mase(as.numeric(lm10_fci$mean), ts10s_actual)
-lm10_tscv_rmse <- round(mean(lm10_tscv$rmse), digits=2)
-message("Linear Regression model: MASE=", lm10_fci_mase, " RMSE=", lm10_fci_rmse, " RMSE(tsCV)=", lm10_tscv_rmse)
+lmC_fci_rmse <- rmse(as.numeric(lmC_fci$mean), tsCs_actual)
+lmC_fci_mase <- mase(as.numeric(lmC_fci$mean), tsCs_actual)
+lmC_tscv_rmse <- round(mean(lmC_tscv$rmse), digits=2)
+message("Linear Regression model: MASE=", lmC_fci_mase, " RMSE=", lmC_fci_rmse, " RMSE(tsCV)=", lmC_tscv_rmse)
 ```
 
 <br>

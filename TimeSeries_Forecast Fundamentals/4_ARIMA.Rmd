@@ -1,7 +1,7 @@
 ---
-title: "Stationary"
+title: "ARIMA"
 author: "Yang Xi"
-date: "17 Jan, 2018"
+date: "Created on 17 Jan 2018; Modified on 24 Aug 2021"
 output:
   html_document:
     toc: 1
@@ -56,23 +56,18 @@ The same data used in the basic algorithms and exponential weighted forecast sec
 library(dplyr)
 library(fpp2)
 
-load('../../data/(2017) Time Series/time_series_monthly.rdata')
+dfItemC <- read.csv('data/time_series_monthly_C.csv')
 
-dfItem10 <- dfSalesMonthly %>%
-  filter(item_id == 10 & first_date >='2008-01-01' & first_date <='2013-12-31') %>%
-  as.data.frame() %>%
-  select(-item_id)
+tsC <- select(dfItemC, -first_date)
+row.names(tsC) <-dfItemC$first_date
+tsC <- ts(tsC, start=c(2008, 1), frequency=12)
+tsCs <- tsC[,'sales_qty']
+autoplot(tsCs)
+ggAcf(tsCs)
 
-ts10 <- select(dfItem10, -first_date)
-row.names(ts10) <-dfItem10$first_date
-ts10 <- ts(ts10, start=c(2008, 1), frequency=12)
-ts10s <- ts10[,'sales_qty']
-autoplot(ts10s)
-ggAcf(ts10s)
-
-ts10s_train <- window(ts10s, end = c(2013, 0))
-ts10s_test <- window(ts10s, start = c(2013, 1))
-ts10s_actual <- as.numeric(ts10s_test)
+tsCs_train <- window(tsCs, end = c(2013, 0))
+tsCs_test <- window(tsCs, start = c(2013, 1))
+tsCs_actual <- as.numeric(tsCs_test)
 ```
 <br>
 Recall that the 2008 – 2012 data is used as training set, and the 2013 data as test set.
@@ -98,11 +93,11 @@ mase <- function(pred, actual) {
 }
 
 # Fit an automatic ARIMA model
-fit_aa1 <- auto.arima(ts10s_train)
+fit_aa1 <- auto.arima(tsCs_train)
 summary(fit_aa1)
 
 # ARIMA(1,1,1) for comparison
-#fit_a1 <- arima(ts10s_train, order=c(1,1,1))
+#fit_a1 <- arima(tsCs_train, order=c(1,1,1))
 #summary(fit_a1)
 ```
 <br>
@@ -114,7 +109,7 @@ The optimal model is selected as a non-seasonal ARIMA model with p=4, q=1 integr
 The following figures present the forecast and residual plots of the model:
 ```{r}
 fc_aa1 <- forecast(fit_aa1, h=12)
-autoplot(fc_aa1, ylim=c(0, 3500))  + autolayer(ts10s_test)
+autoplot(fc_aa1, ylim=c(0, 3500))  + autolayer(tsCs_test)
 checkresiduals(fit_aa1)
 ```
 
@@ -123,10 +118,10 @@ checkresiduals(fit_aa1)
 **6.3.3 Performance**<br>
 Table below summarizes the performance of the ARIMA model:
 ```{r}
-fc_aa1_rmse <- rmse(as.numeric(fc_aa1$mean), ts10s_actual)
-fc_aa1_mase <- mase(as.numeric(fc_aa1$mean), ts10s_actual)
+fc_aa1_rmse <- rmse(as.numeric(fc_aa1$mean), tsCs_actual)
+fc_aa1_mase <- mase(as.numeric(fc_aa1$mean), tsCs_actual)
 
-tscv_aa1 <- tsCV(ts10s_train, function(x,h) forecast(auto.arima(x),h=h), h = 12)
+tscv_aa1 <- tsCV(tsCs_train, function(x,h) forecast(auto.arima(x),h=h), h = 12)
 tscv_aa1_rmse <- rmse_e(as.numeric(tscv_aa1))
 message("auto.arima model1: MASE=", fc_aa1_mase, " RMSE=", fc_aa1_rmse, " RMSE(tsCV)=", tscv_aa1_rmse)
 ```
@@ -136,26 +131,21 @@ message("auto.arima model1: MASE=", fc_aa1_mase, " RMSE=", fc_aa1_rmse, " RMSE(t
 ### 6.4 Example 2: Seasonal ARIMA of Daily Sales Data
 Daily sales data of an item from 2014 Q3 to 2016 Q2 will be used as example. Recall its time series plot and ACF plot:
 ```{r, message=FALSE}
-load('../../data/(2017) Time Series/time_series_daily.rdata')
-
-dfItem11 <- dfSalesDaily %>%
-  filter(item_id == 11 & date >='2014-07-01' & date <='2016-06-30') %>%
-  as.data.frame() %>%
-  select(-item_id)
+dfItemB <- read.csv('data/time_series_daily_B.csv')
 
 # Convert to ts
-ts11 <- select(dfItem11, -date)
-row.names(ts11) <- dfItem11$date
-ts11_p <- 91 # 91 days in one quarter (decimal frequency may result fail in seasonal model)
-ts11 <- ts(ts11, start=c(1, 1), frequency=ts11_p)
-ts11s <- ts11[,'sales_qty']
+tsB <- select(dfItemB, -date)
+row.names(tsB) <- dfItemB$date
+tsB_p <- 91 # 91 days in one quarter (decimal frequency may result fail in seasonal model)
+tsB <- ts(tsB, start=c(1, 1), frequency=tsB_p)
+tsBs <- tsB[,'sales_qty']
 
-autoplot(ts11s)
-ggAcf(ts11s)
+autoplot(tsBs)
+ggAcf(tsBs)
 
-ts11s_train <- window(ts11s, end = c(8, 3))
-ts11s_test <- window(ts11s, start = c(8, 4))
-ts11s_actual <- as.numeric(ts11s_test)
+tsBs_train <- window(tsBs, end = c(8, 3))
+tsBs_test <- window(tsBs, start = c(8, 4))
+tsBs_actual <- as.numeric(tsBs_test)
 ```
 <br>
 2014 Q3 to 2016 Q1 (7 quarters) data will be used as training set, and 2016 Q2 data as test set.
@@ -165,11 +155,11 @@ ts11s_actual <- as.numeric(ts11s_test)
 **6.4.1	ARIMA Parameters**<br>
 By applying `auto.arima()` to the training data, the following model is fitted:
 ```{r}
-fit_aa2 <- auto.arima(ts11s_train)
+fit_aa2 <- auto.arima(tsBs_train)
 summary(fit_aa2)
 
 # ARIMA(1,0,0)(0,0,1)[91] for comparison
-#fit_a2 <- arima(ts10s_train, order=c(1,0,0), seasonal=list(order=c(0,0,1)))
+#fit_a2 <- arima(tsCs_train, order=c(1,0,0), seasonal=list(order=c(0,0,1)))
 #summary(fit_a2)
 ```
 <br>
@@ -194,26 +184,26 @@ Note that the residuals have high ACF value, which implies that there are patter
 Performance of the seasonal ARIMA model is summarized as below:
 ```{r}
 # Performance
-fc_aa2_rmse <- rmse(as.numeric(fc_aa2$mean), ts11s_actual)
-fc_aa2_mase <- mase(as.numeric(fc_aa2$mean), ts11s_actual)
+fc_aa2_rmse <- rmse(as.numeric(fc_aa2$mean), tsBs_actual)
+fc_aa2_mase <- mase(as.numeric(fc_aa2$mean), tsBs_actual)
 
-# The following tsCV will take very long
-tscv_aa2 <- tsCV(ts11s_train, function(x,h) forecast(auto.arima(x),h=h), h = 91)
-tscv_aa2_rmse <- rmse_e(as.numeric(tscv_aa2))
-#tscv_aa2_rmse <- 7.83
+## The following tsCV will take very long
+## tscv_aa2 <- tsCV(tsBs_train, function(x,h) forecast(auto.arima(x),h=h), h = 91)
+## tscv_aa2_rmse <- rmse_e(as.numeric(tscv_aa2))
+tscv_aa2_rmse <- 8.46
 message("auto.arima model2: MASE=", fc_aa2_mase, " RMSE=", fc_aa2_rmse, " RMSE(tsCV)=", tscv_aa2_rmse)
 ```
 <br>
 Seasonal Naïve model is also fitted as a benchmark:
 ```{r}
-fc_snaive2 <- snaive(ts11s_train, h = 91)
+fc_snaive2 <- snaive(tsBs_train, h = 91)
 checkresiduals(fc_snaive2)
 autoplot(fc_snaive2)
 
-fc_snaive2_rmse <- rmse(as.numeric(fc_snaive2$mean), ts11s_actual)
-fc_snaive2_mase <- mase(as.numeric(fc_snaive2$mean), ts11s_actual)
+fc_snaive2_rmse <- rmse(as.numeric(fc_snaive2$mean), tsBs_actual)
+fc_snaive2_mase <- mase(as.numeric(fc_snaive2$mean), tsBs_actual)
 
-tscv_snaive2 <- tsCV(ts11s_train, snaive, h = 91)
+tscv_snaive2 <- tsCV(tsBs_train, snaive, h = 91)
 tscv_snaive2_rmse <- rmse_e(as.numeric(tscv_snaive2))
 message("snaive model: MASE=", fc_snaive2_mase, " RMSE=", fc_snaive2_rmse, " RMSE(tsCV)=", tscv_snaive2_rmse)
 ```

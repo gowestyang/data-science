@@ -1,7 +1,7 @@
 ---
 title: "Stationary"
 author: "Yang Xi"
-date: "17 Jan, 2018"
+date: "Created on 17 Jan 2018; Modified on 24 Aug 2021"
 output:
   html_document:
     toc: 1
@@ -26,21 +26,16 @@ If the time series data show increasing variation as the level of series increas
 library(dplyr)
 library(fpp2)
 
-load('../../data/(2017) Time Series/time_series_daily.rdata')
+dfItemA <- read.csv('data/time_series_daily_A.csv')
 
-dfItem6 <- dfSalesDaily %>%
-  filter(item_id == 6 & date >='2008-01-01' & date <='2013-12-31') %>%
-  as.data.frame() %>%
-  select(-item_id)
+tsA <- select(dfItemA, -date)
+row.names(tsA) <- dfItemA$date
+tsA <- ts(tsA, start=c(2008, 1), frequency=365.25)
+tsAs <- tsA[,'sales_qty']
+autoplot(tsAs)
 
-ts6 <- select(dfItem6, -date)
-row.names(ts6) <- dfItem6$date
-ts6 <- ts(ts6, start=c(2008, 1), frequency=365.25)
-ts6s <- ts6[,'sales_qty']
-autoplot(ts6s)
-
-dfItem6  %>%
-  mutate(year = format(date, '%Y')) %>%
+dfItemA  %>%
+  mutate(year = format.Date(date, '%Y')) %>%
   group_by(year) %>%
   summarise(mean = round(mean(sales_qty), 2),
             var = round(var(sales_qty), 2)) %>%
@@ -99,15 +94,15 @@ Optimal λ value can be selected by minimizing the coefficient of variation of t
 **5.1.4 Example: Daily Sales Data of an Item**<br>
 Figure below shows the Box-Cox transformation of the daily sales data using the optimal $\lambda=0.35$ :
 ```{r}
-bc_lambda <- BoxCox.lambda(ts6s)
+bc_lambda <- BoxCox.lambda(tsAs)
 message("The optimal lambda is ", bc_lambda)
 
-boxcox <- BoxCox(ts6s, lambda=bc_lambda)
+boxcox <- BoxCox(tsAs, lambda=bc_lambda)
 
 autoplot(boxcox)
 
 # List the mean and variance of each year
-data.frame(year=format(dfItem6$date, '%Y'), y=as.numeric(boxcox)) %>%
+data.frame(year=format.Date(dfItemA$date, '%Y'), y=as.numeric(boxcox)) %>%
   group_by(year) %>%
   summarise(mean = round(mean(y), 2),
             var = round(var(y), 2)) %>%
@@ -132,7 +127,7 @@ $$ w_t=y_t-y_{t-1} $$
 <br>
 Figure below show the non-seasonal differencing of the daily sales data:
 ```{r}
-d_ns <- diff(ts6s)
+d_ns <- diff(tsAs)
 autoplot(d_ns)
 ```
 
@@ -144,7 +139,7 @@ $$ w_t=y_t-y_{t-m} $$
 
 Figure below show the seasonal differencing of the daily sales data, with weekly seasonality (m=7):
 ```{r}
-d_s <- diff(ts6s, lag=7)
+d_s <- diff(tsAs, lag=7)
 autoplot(d_s)
 ```
 
