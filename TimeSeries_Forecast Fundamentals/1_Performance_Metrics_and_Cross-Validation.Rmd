@@ -1,7 +1,7 @@
 ---
 title: "Time Series Definitions, Performance Metrics and Cross-Validation"
 author: "Yang Xi"
-date: "17 Jan, 2018"
+date: "Created on 17 Jan 2018; Modified on 24 Aug 2021"
 output:
   html_document:
     toc: 1
@@ -43,6 +43,7 @@ A white noise signal is a time series of independent and identically distributed
 library(dplyr)
 library(fpp2)
 
+set.seed(1)
 wn <- ts(rnorm(731), start=c(1,1), frequency=91)  # White noise
 autoplot(wn) 
 ```
@@ -61,24 +62,19 @@ The cut-off lines (dashed blue) are determined by sample distribution. 95% of al
 <br>
 In contrast, the ACF plot of a daily sales data of an item has many values outside the cut-off lines as shown below:
 ```{r}
-load('../../data/(2017) Time Series/time_series_daily.rdata')
-
-dfItem11 <- dfSalesDaily %>%
-  filter(item_id == 11 & date >='2014-07-01' & date <='2016-06-30') %>%
-  as.data.frame() %>%
-  select(-item_id)
+dfItemB <- read.csv('data/time_series_daily_B.csv')
 
 # Convert to ts
-ts11 <- select(dfItem11, -date)
-row.names(ts11) <- dfItem11$date
-ts11_p <- 91 # 91 days in one quarter (decimal frequency may result fail in seasonal model)
-ts11 <- ts(ts11, start=c(1, 1), frequency=ts11_p)
-ts11s <- ts11[,'sales_qty']
-autoplot(ts11s)
+tsB <- select(dfItemB, -date)
+row.names(tsB) <- dfItemB$date
+tsB_p <- 91 # 91 days in one quarter (decimal frequency may result fail in seasonal model)
+tsB <- ts(tsB, start=c(1, 1), frequency=tsB_p)
+tsBs <- tsB[,'sales_qty']
+autoplot(tsBs)
 
-acf11s <- ggAcf(ts11s)
-acf11s
-message("The max ACF occurs at ", acf11s$data$lag[which.max(acf11s$data$Freq)], " days of lag.")
+acfBs <- ggAcf(tsBs)
+acfBs
+message("The max ACF occurs at ", acfBs$data$lag[which.max(acfBs$data$Freq)], " days of lag.")
 
 ```
 <br>
@@ -97,12 +93,12 @@ Section below compares the results of Ljung-Box tests of the above white noise a
 
 * Ljung-Box test result of white noise:
 ```{r}
-Box.test(wn, lag = 91, type = "Ljung-Box")
+Box.test(wn, lag = tsB_p, type = "Ljung-Box")
 ```
 
 * Ljung-Box test result of the sales data:
 ```{r}
-Box.test(ts11s, lag = 91, type = "Ljung-Box")
+Box.test(tsBs, lag = tsB_p, type = "Ljung-Box")
 ```
 
 <br>

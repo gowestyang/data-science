@@ -1,7 +1,7 @@
 ---
 title: "Dynamic Harmonic Regression"
 author: "Yang Xi"
-date: "17 Jan, 2018"
+date: "Created on 17 Jan 2018; Modified on 24 Aug 2021"
 output:
   html_document:
     toc: 1
@@ -40,17 +40,15 @@ Larger *K* value will result in more period patterns extracted. The following fi
 library(dplyr)
 library(fpp2)
 
-load('../../data/(2017) Time Series/time_series_monthly.rdata')
+dfItemC <- read.csv('data/time_series_monthly_C.csv')
 
-dfItem10 <- dfSalesMonthly %>%
-  filter(item_id == 10 & first_date >='2008-01-01' & first_date <='2013-12-31') %>%
-  as.data.frame() %>%
+dfItemC <- dfItemC %>%
   mutate(coverage = (100-stock_out_pct)/100) %>%
   select(c(date=first_date, sales_qty, discount_pct, coverage))
 
 # Train test data index
 ## 2008 - 2012 as training, 2013 as testing
-tp10 <- 60
+train_period <- 60
 
 # Smooth outliers in training data
 outlier_smooth <- function(df_train) {
@@ -77,7 +75,7 @@ outlier_smooth <- function(df_train) {
   return(df_train)
 }
 
-dfItem10[1:tp10,] <- outlier_smooth(dfItem10[1:tp10,])
+dfItemC[1:train_period,] <- outlier_smooth(dfItemC[1:train_period,])
 
 # Transform Variables
 ## Function to get a straight line connecting two points
@@ -102,7 +100,7 @@ discount_curve <- function(discount) {
                        get_line(x4, y4, x5, y5, discount))))
 }
 
-dfItem10 <- dfItem10 %>%
+dfItemC <- dfItemC %>%
   mutate(cm = coverage,
          dm = discount_curve(discount_pct),
          Y = log(sales_qty),
@@ -110,18 +108,18 @@ dfItem10 <- dfItem10 %>%
          Xd = log(dm))
 
 # Covert to ts
-ts10 <- select(dfItem10, -date)
-row.names(ts10) <- dfItem10$date
-ts10 <- ts(ts10, start=c(2008, 1), frequency=12)
-ts10s <- ts10[,'sales_qty']
-#autoplot(ts10, facets=T)
+tsC <- select(dfItemC, -date)
+row.names(tsC) <- dfItemC$date
+tsC <- ts(tsC, start=c(2008, 1), frequency=12)
+tsCs <- tsC[,'sales_qty']
+#autoplot(tsC, facets=T)
 
 # Separate train test sets
 # 2008 - 2012 as training, 2013 as testing
-ts10_train <- window(ts10, end = c(2013, 0))
-ts10_test <- window(ts10, start = c(2013, 1))
-ts10s_test <- window(ts10s, start = c(2013, 1))
-ts10s_actual <- as.numeric(ts10s_test)
+tsC_train <- window(tsC, end = c(2013, 0))
+tsC_test <- window(tsC, start = c(2013, 1))
+tsCs_test <- window(tsCs, start = c(2013, 1))
+tsCs_actual <- as.numeric(tsCs_test)
 ```
 
 <br>
@@ -152,19 +150,19 @@ mase <- function(pred, actual) {
 }
 
 # K = 1
-fit_dhx1 <- auto.arima(ts10_train[,'Y'], xreg = cbind(ts10_train[,c('Xc', 'Xd')], fourier(ts10_train[,'Y'], K = 1)), seasonal=F)
-fc_dhx1 <- forecast(fit_dhx1, xreg = cbind(ts10_test[,c('Xc', 'Xd')], fourier(ts10_train[,'Y'], K = 1, h=12)), level=c(0,0))
+fit_dhx1 <- auto.arima(tsC_train[,'Y'], xreg = cbind(tsC_train[,c('Xc', 'Xd')], fourier(tsC_train[,'Y'], K = 1)), seasonal=F)
+fc_dhx1 <- forecast(fit_dhx1, xreg = cbind(tsC_test[,c('Xc', 'Xd')], fourier(tsC_train[,'Y'], K = 1, h=12)), level=c(0,0))
 fci_dhx1 <- Y_inv(fc_dhx1)
-autoplot(fci_dhx1) + autolayer(ts10s_test)
+autoplot(fci_dhx1) + autolayer(tsCs_test)
 ```
 
 <br>
 **_K=6_**
 ```{r}
-fit_dhx6 <- auto.arima(ts10_train[,'Y'], xreg = cbind(ts10_train[,c('Xc', 'Xd')], fourier(ts10_train[,'Y'], K = 6)), seasonal=F)
-fc_dhx6 <- forecast(fit_dhx6, xreg = cbind(ts10_test[,c('Xc', 'Xd')], fourier(ts10_train[,'Y'], K = 6, h=12)), level=c(0,0))
+fit_dhx6 <- auto.arima(tsC_train[,'Y'], xreg = cbind(tsC_train[,c('Xc', 'Xd')], fourier(tsC_train[,'Y'], K = 6)), seasonal=F)
+fc_dhx6 <- forecast(fit_dhx6, xreg = cbind(tsC_test[,c('Xc', 'Xd')], fourier(tsC_train[,'Y'], K = 6, h=12)), level=c(0,0))
 fci_dhx6 <- Y_inv(fc_dhx6)
-autoplot(fci_dhx6) + autolayer(ts10s_test)
+autoplot(fci_dhx6) + autolayer(tsCs_test)
 ```
 
 <br>
@@ -172,7 +170,7 @@ The optimal *K* value can be selected by minimizing AICc:
 ```{r}
 # Optimal K
 get_dhx_AICc <- function(K) {
-  fit_dhx <- auto.arima(ts10_train[,'Y'], xreg = cbind(ts10_train[,c('Xc', 'Xd')], fourier(ts10_train[,'Y'], K = K)), seasonal=F)
+  fit_dhx <- auto.arima(tsC_train[,'Y'], xreg = cbind(tsC_train[,c('Xc', 'Xd')], fourier(tsC_train[,'Y'], K = K)), seasonal=F)
   return(fit_dhx$aicc)
 }
 
@@ -200,18 +198,18 @@ get_dhx1_rmse <- function(ts_train, ts_test) {
 }
 
 get_dhx1i_rmse <- function(i) {
-  ts_train <- head(ts10_train, i)
-  ts_test <- ts10_train[(i+1):(i+12),]
+  ts_train <- head(tsC_train, i)
+  ts_test <- tsC_train[(i+1):(i+12),]
   return(get_dhx1_rmse(ts_train, ts_test))
 }
 
-dhx110_is <- seq(nrow(ts10_train)/2, nrow(ts10_train)-12)
-dhx110_tscv <- data.frame(i = dhx110_is, rmse = sapply(dhx110_is, get_dhx1i_rmse))
+dhx1C_is <- seq(nrow(tsC_train)/2, nrow(tsC_train)-12)
+dhx1C_tscv <- data.frame(i = dhx1C_is, rmse = sapply(dhx1C_is, get_dhx1i_rmse))
 
 # Performance
-fci_dhx1_rmse <- rmse(as.numeric(fci_dhx1$mean), ts10s_actual)
-fci_dhx1_mase <- mase(as.numeric(fci_dhx1$mean), ts10s_actual)
-dhx1_tscv_rmse <- round(mean(dhx110_tscv$rmse), digits=2)
+fci_dhx1_rmse <- rmse(as.numeric(fci_dhx1$mean), tsCs_actual)
+fci_dhx1_mase <- mase(as.numeric(fci_dhx1$mean), tsCs_actual)
+dhx1_tscv_rmse <- round(mean(dhx1C_tscv$rmse), digits=2)
 message("Dynamic Harmonic model: MASE=", fci_dhx1_mase, " RMSE=", fci_dhx1_rmse, " RMSE(tsCV)=", dhx1_tscv_rmse)
 ```
 
