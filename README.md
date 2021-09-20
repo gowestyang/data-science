@@ -9,7 +9,7 @@ Here you will find templates of frequently used models, including
     - Holt-Winters Model
     - Time-Series Stationary
     - ARIMA, Dynamic Regression and Dynamic Harmonic Regression
-- Recommendation System
+- Recommender System
     - Quick example on MovieLens Data Set
 - Supervised Learning
     - Interpretable Machine Learning
