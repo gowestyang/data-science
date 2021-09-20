@@ -1,7 +1,7 @@
 # data-science
-Yang Xi's machine learning and analytics templates
+Yang Xi's tatistics and machine learning repo
 
-## Welcome to Yang Xi's machine learning and analytics repo!
+## Welcome to Yang Xi's statistics and machine learning repo!
 
 Here you will find templates of frequently used models, including
 - Statistics and AB Testing
@@ -9,6 +9,8 @@ Here you will find templates of frequently used models, including
     - Holt-Winters Model
     - Time-Series Stationary
     - ARIMA, Dynamic Regression and Dynamic Harmonic Regression
+- Recommendation System
+    - Quick example on MovieLens Data Set
 - Supervised Learning
     - Interpretable Machine Learning
         - Local Interpretable Model-agnostic Explanations (LIME)
