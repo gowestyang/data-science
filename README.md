@@ -10,7 +10,9 @@ Here you will find templates of frequently used models, including
     - Time-Series Stationary
     - ARIMA, Dynamic Regression and Dynamic Harmonic Regression
 - Recommender System
-    - Quick example on MovieLens Data Set
+    - MovieLens Examples
+        - Matrix Factorization with Keras
+    - Association Rule: data mining, interpretation and visualization
 - Supervised Learning
     - Interpretable Machine Learning
         - Local Interpretable Model-agnostic Explanations (LIME)
@@ -18,9 +20,6 @@ Here you will find templates of frequently used models, including
     - Linear and tree-based models
         - Model fitting, regularization, cross-validation and interpretation
         - Handle unbalanced class
-- Unsupervised Learning
-    - Association Rule
-        - Rule mining, interpretation and visualization
 - Optimization
     - Integer Programming: Vehicle Routing Problem
 
