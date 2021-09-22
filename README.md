@@ -1,5 +1,5 @@
 # data-science
-Yang Xi's tatistics and machine learning repo
+Yang Xi's statistics and machine learning repo
 
 ## Welcome to Yang Xi's statistics and machine learning repo!
 
