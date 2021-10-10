@@ -1,0 +1,24 @@
+docker build --tag main_recommender .
+
+docker images
+docker tag main_recommender:latest main_recommender:v1.0.0
+docker rmi main_recommender:v1.0.0
+
+docker run -p 8000:8000 --name yangxi-recommender main_recommender
+docker run -d -p 8000:8000 --name yangxi-recommender main_recommender
+(-d is detched / running background, -name is to give the container a name)
+docker ps
+docker ps -a
+docker stop yangxi-recommender
+docker restart yangxi-recommender
+docker rm yangxi-recommender
+
+docker inspect main_recommender 
+docker run -it main_recommender bash
+
+docker save -o main_recommender.tar main_recommender
+docker load -i main_recommender.tar
+
+
+
+
