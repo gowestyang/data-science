@@ -22,6 +22,8 @@ Here you will find reading notes and code templates of frequently used models, i
     - Interpretable Machine Learning
         - Local Interpretable Model-agnostic Explanations (LIME)
         - Interactions-based Method for Explanation (IME, Shapley Value)
+    - Deep Learning (WIP)
+    - Reinforcement Learning (WIP)
 <br><br>
 - Machine Learning Project Management
     -  Study notes of [Structuring Machine Learning Projects](https://www.coursera.org/learn/machine-learning-projects) by *Andrew Ng*
