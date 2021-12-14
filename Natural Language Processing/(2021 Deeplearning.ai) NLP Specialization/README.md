@@ -1,4 +1,4 @@
-This folder contains Yang Xi's study notes of **Natural Language Processing Specialization** by *deeplearning.ai*, offered on *courera*.
+This folder contains Yang Xi's study notes of **Natural Language Processing Specialization** by *deeplearning.ai*, offered on *Coursera*.
 
 <br>
 
