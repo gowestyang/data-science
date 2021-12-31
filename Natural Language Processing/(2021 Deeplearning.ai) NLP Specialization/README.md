@@ -54,6 +54,16 @@ This folder contains Yang Xi's study notes of **Natural Language Processing Spec
         * Trax Select and Residual Layers
     * Week 2: Text Summarization with Transformers
         * Multi-Head Attention, Encoder-Decoder Attention, Bi-directional Self-attention, Masked Self-Attention (Causal Attention)
-        * Positional Encoding
+        * Positional Embedding
         * GPT-2, BERT, T5
         * Summarization: Training and Inferencing
+    * Week 3: Question Answering with BERT and T5
+        * Transfer Learning (TL)
+        * BERT, (Multi-)Masked Language Modeling, Next Sentence Prediction (NSP), Segment Embedding, Fine-tuning BERT
+        * T5, Encoder-Decoder Attention, Multi-Task Training, Text-to-Text, Temperature Scaled Mixing
+        * General Language Understanding Evaluation (GLUE) Benchmark, Model Agnostic
+        * Question Answering (Context-based, Closed-book)
+        * Tokenization, SentencePiece, NFKC, Byte Pair Encoding (BPE)
+        * Hugging Face
+    * Week 4: Chatbot
+        * Reformer, Locality Sensitive Hashing (LSH) Attention, Reversible Residual Layers
