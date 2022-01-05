@@ -1,0 +1,1 @@
+This folder contains Yang Xi's reading notes of [Advances in Financial Machine Learning](https://www.wiley.com/en-us/Advances+in+Financial+Machine+Learning-p-9781119482086) by *Marcos Lopez de Prado* (2018)
